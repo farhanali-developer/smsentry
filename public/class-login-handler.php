@@ -6,15 +6,18 @@ class SMSentry_Login_Handler {
 	private SMSentry_Authenticator $authenticator;
 	private SMSentry_Session $session;
 	private SMSentry_Rate_Limiter $rate_limiter;
+	private SMSentry_Device_Trust $device_trust;
 
 	public function __construct(
 		SMSentry_Authenticator $authenticator,
 		SMSentry_Session $session,
-		SMSentry_Rate_Limiter $rate_limiter
+		SMSentry_Rate_Limiter $rate_limiter,
+		SMSentry_Device_Trust $device_trust
 	) {
 		$this->authenticator = $authenticator;
 		$this->session       = $session;
 		$this->rate_limiter  = $rate_limiter;
+		$this->device_trust  = $device_trust;
 	}
 
 	public function register(): void {
@@ -43,6 +46,10 @@ class SMSentry_Login_Handler {
 
 		if ( null === $method ) {
 			return $user;
+		}
+
+		if ( (bool) get_option( 'smsentry_remember_device_enabled', true ) && $this->device_trust->is_trusted( $user->ID ) ) {
+			return $user; // Trusted device — skip 2FA entirely.
 		}
 
 		$this->session->create( $user->ID, $method );
@@ -114,9 +121,18 @@ class SMSentry_Login_Handler {
 			exit;
 		}
 
+		$ip = SMSentry_Audit_Log::get_client_ip();
+
 		if ( $this->rate_limiter->is_locked_out( $user_id ) ) {
 			$this->session->destroy();
 			SMSentry_Audit_Log::log( $user_id, 'lockout' );
+			wp_safe_redirect( add_query_arg( 'smsentry_error', 'locked', wp_login_url() ) );
+			exit;
+		}
+
+		if ( $this->rate_limiter->is_ip_locked_out( $ip ) ) {
+			$this->session->destroy();
+			SMSentry_Audit_Log::log( $user_id, 'ip_lockout', $ip );
 			wp_safe_redirect( add_query_arg( 'smsentry_error', 'locked', wp_login_url() ) );
 			exit;
 		}
@@ -129,11 +145,19 @@ class SMSentry_Login_Handler {
 
 		if ( is_wp_error( $result ) ) {
 			$this->rate_limiter->record_attempt( $user_id );
+			$this->rate_limiter->record_ip_attempt( $ip );
 			SMSentry_Audit_Log::log( $user_id, 'login_failed', $result->get_error_message() );
 
 			if ( $this->rate_limiter->is_locked_out( $user_id ) ) {
 				$this->session->destroy();
 				SMSentry_Audit_Log::log( $user_id, 'lockout' );
+				wp_safe_redirect( add_query_arg( 'smsentry_error', 'locked', wp_login_url() ) );
+				exit;
+			}
+
+			if ( $this->rate_limiter->is_ip_locked_out( $ip ) ) {
+				$this->session->destroy();
+				SMSentry_Audit_Log::log( $user_id, 'ip_lockout', $ip );
 				wp_safe_redirect( add_query_arg( 'smsentry_error', 'locked', wp_login_url() ) );
 				exit;
 			}
@@ -147,6 +171,11 @@ class SMSentry_Login_Handler {
 		SMSentry_Audit_Log::log( $user_id, 'login_success', 'via ' . $channel );
 		if ( 'backup' === $mode ) {
 			SMSentry_Audit_Log::log( $user_id, 'backup_code_used' );
+		}
+
+		if ( (bool) get_option( 'smsentry_remember_device_enabled', true ) && ! empty( $_POST['smsentry_remember_device'] ) ) {
+			$this->device_trust->trust_device( $user_id );
+			SMSentry_Audit_Log::log( $user_id, 'device_trusted' );
 		}
 
 		$this->rate_limiter->reset( $user_id );
@@ -188,12 +217,13 @@ class SMSentry_Login_Handler {
 			}
 		}
 
-		$can_resend       = $user_id ? $this->rate_limiter->can_resend( $user_id ) : true;
-		$resend_remaining = $user_id ? $this->rate_limiter->get_resend_remaining( $user_id ) : 0;
-		$has_backup_codes = $user_id ? $this->authenticator->get_backup_codes_remaining( $user_id ) > 0 : false;
-		$redirect_to      = $this->session->get_redirect_to();
-		$resend_nonce     = wp_create_nonce( 'smsentry_resend' );
-		$ajax_url         = admin_url( 'admin-ajax.php' );
+		$can_resend          = $user_id ? $this->rate_limiter->can_resend( $user_id ) : true;
+		$resend_remaining    = $user_id ? $this->rate_limiter->get_resend_remaining( $user_id ) : 0;
+		$has_backup_codes    = $user_id ? $this->authenticator->get_backup_codes_remaining( $user_id ) > 0 : false;
+		$can_remember_device = (bool) get_option( 'smsentry_remember_device_enabled', true );
+		$redirect_to         = $this->session->get_redirect_to();
+		$resend_nonce        = wp_create_nonce( 'smsentry_resend' );
+		$ajax_url            = admin_url( 'admin-ajax.php' );
 
 		// Enqueue our CSS/JS inside the WP login page (jQuery isn't loaded here by default).
 		add_action( 'login_enqueue_scripts', function () {

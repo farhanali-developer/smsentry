@@ -4,9 +4,11 @@ defined( 'ABSPATH' ) || exit;
 class SMSentry_User_Profile {
 
 	private SMSentry_Authenticator $authenticator;
+	private SMSentry_Device_Trust $device_trust;
 
-	public function __construct( SMSentry_Authenticator $authenticator ) {
+	public function __construct( SMSentry_Authenticator $authenticator, SMSentry_Device_Trust $device_trust ) {
 		$this->authenticator = $authenticator;
+		$this->device_trust  = $device_trust;
 	}
 
 	public function register(): void {
@@ -19,6 +21,10 @@ class SMSentry_User_Profile {
 		add_action( 'wp_ajax_smsentry_remove_2fa', array( $this, 'ajax_remove_2fa' ) );
 		add_action( 'wp_ajax_smsentry_generate_backup_codes', array( $this, 'ajax_generate_backup_codes' ) );
 		add_action( 'wp_ajax_smsentry_enable_email_2fa', array( $this, 'ajax_enable_email_2fa' ) );
+		add_action( 'wp_ajax_smsentry_forget_devices', array( $this, 'ajax_forget_devices' ) );
+		add_action( 'personal_options_update', array( $this, 'maybe_warn_unsaved_phone' ) );
+		add_action( 'edit_user_profile_update', array( $this, 'maybe_warn_unsaved_phone' ) );
+		add_action( 'admin_notices', array( $this, 'render_phone_reminder_notice' ) );
 	}
 
 	public function enqueue_scripts( string $hook ): void {
@@ -53,6 +59,9 @@ class SMSentry_User_Profile {
 				'enablingEmail'   => __( 'Enabling...', 'smsentry' ),
 				'useEmailInstead' => __( 'Use Email Instead', 'smsentry' ),
 				'emailEnabled'    => __( 'Email-based 2FA is now active on your account.', 'smsentry' ),
+				'confirmForget'   => __( 'Forget all trusted devices? You will be asked for a code on every device next time.', 'smsentry' ),
+				'forgetting'      => __( 'Forgetting...', 'smsentry' ),
+				'forgetDevices'   => __( 'Forget All Devices', 'smsentry' ),
 			),
 		) );
 	}
@@ -75,6 +84,7 @@ class SMSentry_User_Profile {
 		$active_method = $phone_verified ? 'sms' : ( $email_2fa_enabled ? 'email' : 'none' );
 
 		$backup_codes_remaining = ( 'none' !== $active_method ) ? $this->authenticator->get_backup_codes_remaining( $user->ID ) : 0;
+		$trusted_device_count   = $this->device_trust->get_device_count( $user->ID );
 
 		require SMSENTRY_DIR . 'admin/views/user-profile-field.php';
 	}
@@ -133,6 +143,7 @@ class SMSentry_User_Profile {
 			? str_repeat( '*', max( 0, strlen( $phone ) - 4 ) ) . substr( $phone, -4 )
 			: $phone;
 		SMSentry_Audit_Log::log( $user_id, 'phone_verified', $masked );
+		SMSentry_Stats::flush_cache();
 
 		wp_send_json_success( array( 'message' => __( 'Phone verified. Two-factor authentication is now active.', 'smsentry' ) ) );
 	}
@@ -152,6 +163,7 @@ class SMSentry_User_Profile {
 		$enabled = rest_sanitize_boolean( sanitize_text_field( wp_unslash( $_POST['enabled'] ?? '' ) ) );
 		update_user_meta( $user_id, 'smsentry_2fa_enabled', $enabled );
 		SMSentry_Audit_Log::log( $user_id, $enabled ? '2fa_enabled' : '2fa_disabled' );
+		SMSentry_Stats::flush_cache();
 
 		wp_send_json_success( array(
 			'message' => $enabled
@@ -177,8 +189,10 @@ class SMSentry_User_Profile {
 		delete_user_meta( $user_id, 'smsentry_2fa_enabled' );
 		delete_user_meta( $user_id, 'smsentry_backup_codes' );
 		delete_user_meta( $user_id, 'smsentry_email_2fa_enabled' );
+		$this->device_trust->forget_all( $user_id );
 
 		SMSentry_Audit_Log::log( $user_id, '2fa_disabled', 'removed by user/admin' );
+		SMSentry_Stats::flush_cache();
 
 		wp_send_json_success( array( 'message' => __( 'Two-factor authentication has been removed from your account.', 'smsentry' ) ) );
 	}
@@ -222,8 +236,55 @@ class SMSentry_User_Profile {
 
 		update_user_meta( $user_id, 'smsentry_email_2fa_enabled', true );
 		SMSentry_Audit_Log::log( $user_id, 'email_2fa_enabled' );
+		SMSentry_Stats::flush_cache();
 
 		wp_send_json_success( array( 'message' => __( 'Email-based 2FA is now active on your account.', 'smsentry' ) ) );
+	}
+
+	public function ajax_forget_devices(): void {
+		check_ajax_referer( 'smsentry_profile', 'nonce' );
+
+		$user_id = get_current_user_id();
+		if ( ! $user_id ) {
+			wp_send_json_error( array( 'message' => __( 'You must be logged in.', 'smsentry' ) ) );
+		}
+
+		$this->device_trust->forget_all( $user_id );
+		SMSentry_Audit_Log::log( $user_id, 'devices_forgotten' );
+
+		wp_send_json_success( array( 'message' => __( 'All trusted devices have been forgotten. You will be asked for a code on every device next time.', 'smsentry' ) ) );
+	}
+
+	/**
+	 * Fires on personal_options_update / edit_user_profile_update — the main
+	 * "Update Profile" save. The phone field is intentionally not processed
+	 * here (it requires OTP verification first), so warn instead of silently
+	 * discarding it if someone typed a number but didn't click "Send
+	 * Verification Code".
+	 */
+	public function maybe_warn_unsaved_phone(): void {
+		$pending = sanitize_text_field( wp_unslash( $_POST['smsentry_pending_phone'] ?? '' ) );
+
+		if ( '' === $pending ) {
+			return;
+		}
+
+		set_transient( 'smsentry_phone_reminder_' . get_current_user_id(), true, MINUTE_IN_SECONDS );
+	}
+
+	public function render_phone_reminder_notice(): void {
+		$key = 'smsentry_phone_reminder_' . get_current_user_id();
+
+		if ( ! get_transient( $key ) ) {
+			return;
+		}
+
+		delete_transient( $key );
+
+		printf(
+			'<div class="notice notice-warning is-dismissible"><p>%s</p></div>',
+			esc_html__( 'SMSentry: the phone number you typed was not saved. Use "Send Verification Code" (in the Two-Factor Authentication section) to verify and save it — "Update Profile" does not save unverified numbers.', 'smsentry' )
+		);
 	}
 
 	private function is_valid_e164( string $phone ): bool {

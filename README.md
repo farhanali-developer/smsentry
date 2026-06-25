@@ -18,6 +18,12 @@ Two-factor authentication for WordPress via SMS. Supports **Twilio** and **Vonag
 - Emergency break-glass bypass (`wp-config.php` constant + WP-CLI) if SMS delivery fails site-wide
 - Email OTP fallback for users without a verified phone (voluntary opt-in or admin-enforced by role)
 - Audit log of logins, failed attempts, lockouts, and 2FA changes, visible to admins
+- 2FA status column and a per-user "Enforce 2FA" bulk action on the Users list
+- Security alert emails when 2FA/phone settings change, so a user notices if an attacker disables their 2FA
+- Per-IP rate limiting, in addition to per-user, to catch credential-stuffing across many accounts
+- "Remember this device" for 30 days, with a profile-page "Forget All Devices" control
+- First-run setup checklist and a 2FA adoption widget on the settings page
+- Paste a full international number (e.g. `+442071234567`) into any phone field and the country is auto-detected
 - Zero third-party PHP SDKs — just `wp_remote_post()` and `wp_mail()`
 
 ## Requirements
@@ -85,6 +91,31 @@ For users without a verified phone number, SMSentry can deliver the OTP by email
 
 A dedicated `wp_smsentry_audit_log` table records logins, failed code attempts, lockouts, phone/email 2FA changes, and backup code usage, with timestamp, user, event type, free-text details, and IP address. View and filter it under **SMSentry → Audit Log**. Entries older than 90 days are pruned automatically via WP-Cron (configurable with the `smsentry_audit_log_retention_days` filter).
 
+## Per-user enforcement (Users list)
+
+The Users list table shows a **2FA** column (method + an "Enforced" badge) for every user. Select one or more users and use the bulk actions dropdown:
+
+- **Enforce 2FA** — requires 2FA for these specific users on their next login, regardless of role
+- **Remove 2FA enforcement** — undoes it
+
+This complements role-based enforcement (Security tab) for one-off cases — e.g. a single contractor account that needs 2FA without making it mandatory for their entire role.
+
+## Per-IP rate limiting
+
+In addition to the per-user lockout, failed code attempts are also tracked per IP address. The IP lockout threshold is `max_attempts × 4` (using whatever you've set on the Security tab), high enough to tolerate several genuine users behind shared NAT/Wi-Fi, but low enough to stop an attacker spraying codes across many different accounts from a single IP — something per-user limiting alone can't catch.
+
+## Security alert emails
+
+When a user's phone is verified, 2FA is enabled/disabled, email 2FA is toggled, backup codes are regenerated, or the account is locked out, SMSentry emails the account owner. This closes the gap where an attacker who already has a password could quietly turn off 2FA or swap the phone number without the real user finding out. Toggle this under **SMSentry → Security → Security Alert Emails** (on by default).
+
+## Remember this device
+
+After a successful code entry, a user can check "Trust this device for 30 days" to skip the code on that browser next time. A random token is stored in a cookie; only its SHA-256 hash lives in user meta, so the cookie itself is the only proof of trust. Users can revoke all trusted devices from their profile page ("Forget All Devices"), and admins can disable the feature site-wide under **SMSentry → Security → Remember Device**.
+
+## Setup checklist & adoption widget
+
+A dismissible checklist appears above the settings tabs until you've added provider credentials and sent a successful test message. The Security tab also shows a live breakdown of 2FA adoption — how many users have it active (by method), and how many users under a required role still haven't set it up.
+
 ## Architecture
 
 ```
@@ -100,6 +131,9 @@ smsentry/
 │   ├── class-countries.php               # Country/dial-code dataset + picker UI
 │   ├── class-cli-command.php             # WP-CLI: list / reset (emergency recovery)
 │   ├── class-audit-log.php               # Audit log table, queries, pruning
+│   ├── class-stats.php                   # 2FA adoption summary (cached 5 min)
+│   ├── class-notifier.php                # Security alert emails on audit events
+│   ├── class-device-trust.php            # "Remember this device" cookie/meta logic
 │   └── providers/
 │       ├── interface-sms-provider.php
 │       ├── class-twilio-provider.php
@@ -107,6 +141,7 @@ smsentry/
 ├── admin/
 │   ├── class-admin.php                   # Settings page, test SMS, validate
 │   ├── class-user-profile.php            # Profile 2FA section + AJAX
+│   ├── class-users-list.php              # 2FA column + bulk enforce/unenforce
 │   └── views/
 ├── public/
 │   ├── class-login-handler.php           # authenticate / wp_login_failed hooks
@@ -135,9 +170,11 @@ Then wire it up in `SMSentry_Plugin::resolve_provider()`.
 
 - OTPs and backup codes are hashed with `password_hash()` before being stored — never logged or stored in plain text
 - API credentials (Twilio Auth Token, Vonage API Secret) are encrypted with AES-256-CBC using a key derived from the site's `AUTH_KEY`
-- OTP entry is rate-limited; a configurable number of failed attempts locks the session for a cooldown period
+- OTP entry is rate-limited per user **and** per IP; a configurable number of failed attempts locks out either
 - All AJAX endpoints are nonce-protected and capability-checked
 - Audit log entries are never deletable via the WP personal-data eraser, so a malicious actor can't use a data-erasure request to wipe evidence of an attack
+- Trusted-device cookies store a random token client-side; only its SHA-256 hash is kept server-side, so nothing useful is exposed if the database leaks
+- 2FA configuration changes trigger an email to the account owner, so a password-only compromise can't silently disable 2FA unnoticed
 
 ## License
 

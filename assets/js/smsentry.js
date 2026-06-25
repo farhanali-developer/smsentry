@@ -68,7 +68,7 @@
 				$trigger.attr('aria-expanded', 'false');
 			}
 
-			function selectItem($li) {
+			function selectItem($li, keepFocus) {
 				var iso      = $li.data('iso');
 				var dialCode = $li.data('dial-code');
 
@@ -80,9 +80,41 @@
 				$items.removeClass('is-selected');
 				$li.addClass('is-selected');
 
-				closeDropdown();
-				$trigger.focus();
+				if (!keepFocus) {
+					closeDropdown();
+					$trigger.focus();
+				}
 			}
+
+			// Auto-detect country from a pasted international number, e.g. "+442071234567".
+			// Only acts on paste (not on every keystroke) since a dial code like "1" is a
+			// valid prefix of longer codes like "1242" (Bahamas) — matching mid-typing would
+			// guess wrong and keep stealing focus from the field as the user keeps typing.
+			var $numberInput = $picker.closest('.smsentry-phone-group').find('.smsentry-phone-number');
+
+			$numberInput.on('paste', function () {
+				var $input = $(this);
+
+				window.setTimeout(function () {
+					var val = $input.val();
+					if (val.charAt(0) !== '+') {
+						return;
+					}
+
+					var digits = val.replace(/\D/g, '');
+					var byLength = $items.toArray()
+						.map(function (li) { return { li: li, dialCode: String($(li).data('dial-code')) }; })
+						.sort(function (a, b) { return b.dialCode.length - a.dialCode.length; });
+
+					for (var i = 0; i < byLength.length; i++) {
+						if (digits.indexOf(byLength[i].dialCode) === 0) {
+							selectItem($(byLength[i].li), true);
+							$input.val(digits.slice(byLength[i].dialCode.length));
+							break;
+						}
+					}
+				}, 0);
+			});
 
 			$trigger.on('click', function (e) {
 				e.stopPropagation();
@@ -413,6 +445,37 @@
 				$btn.prop('disabled', false).text(cfg.i18n.useEmailInstead || 'Use Email Instead');
 			});
 		});
+
+		// Forget all trusted devices
+		$(document).on('click', '#smsentry-forget-devices', function () {
+			var $btn       = $(this);
+			var $result    = $('#smsentry-forget-result');
+			var confirmMsg = cfg.i18n.confirmForget || 'Forget all trusted devices?';
+
+			if (!window.confirm(confirmMsg)) {
+				return;
+			}
+
+			$btn.prop('disabled', true).text(cfg.i18n.forgetting || 'Forgetting...');
+
+			$.post(cfg.ajaxUrl, {
+				action : 'smsentry_forget_devices',
+				nonce  : cfg.nonce
+			})
+			.done(function (response) {
+				if (response.success) {
+					showResult($result, response.data.message, false);
+					setTimeout(function () { location.reload(); }, 1200);
+				} else {
+					showResult($result, response.data.message, true);
+					$btn.prop('disabled', false).text(cfg.i18n.forgetDevices || 'Forget All Devices');
+				}
+			})
+			.fail(function () {
+				showResult($result, 'Request failed.', true);
+				$btn.prop('disabled', false).text(cfg.i18n.forgetDevices || 'Forget All Devices');
+			});
+		});
 	}
 
 	function renderBackupCodes(codes, cfg) {
@@ -458,6 +521,15 @@
 			var selected = $(this).val();
 			$('.smsentry-provider-section').hide();
 			$('.smsentry-provider-section[data-provider="' + selected + '"]').show();
+		});
+
+		// Dismiss the first-run setup checklist
+		$('#smsentry-dismiss-setup').on('click', function () {
+			$('#smsentry-setup-checklist').slideUp(150);
+			$.post(cfg.ajaxUrl, {
+				action : 'smsentry_dismiss_setup_notice',
+				nonce  : cfg.nonce
+			});
 		});
 
 		// Validate credentials

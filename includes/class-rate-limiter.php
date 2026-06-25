@@ -3,8 +3,18 @@ defined( 'ABSPATH' ) || exit;
 
 class SMSentry_Rate_Limiter {
 
-	private const ATTEMPTS_PREFIX = 'smsentry_attempts_';
-	private const RESEND_PREFIX   = 'smsentry_resend_';
+	private const ATTEMPTS_PREFIX    = 'smsentry_attempts_';
+	private const RESEND_PREFIX      = 'smsentry_resend_';
+	private const IP_ATTEMPTS_PREFIX = 'smsentry_ip_attempts_';
+
+	/**
+	 * IP-based lockout threshold = max_attempts * this multiplier. Higher
+	 * than the per-user threshold since one IP can legitimately represent
+	 * several real users behind NAT/shared Wi-Fi; this still catches an
+	 * attacker spraying codes across many different accounts from one IP,
+	 * which per-user limiting alone can't.
+	 */
+	private const IP_MULTIPLIER = 4;
 
 	private int $max_attempts;
 	private int $lockout_duration;
@@ -57,5 +67,27 @@ class SMSentry_Rate_Limiter {
 			return 0;
 		}
 		return max( 0, $expiry - time() );
+	}
+
+	/**
+	 * Tracks failed OTP/backup-code attempts per IP address, independent of
+	 * which user account is being targeted — catches an attacker spraying
+	 * codes across many different accounts from one IP.
+	 */
+	public function record_ip_attempt( string $ip ): void {
+		if ( empty( $ip ) ) {
+			return;
+		}
+		$key      = self::IP_ATTEMPTS_PREFIX . md5( $ip );
+		$attempts = (int) get_transient( $key );
+		set_transient( $key, $attempts + 1, $this->lockout_duration );
+	}
+
+	public function is_ip_locked_out( string $ip ): bool {
+		if ( empty( $ip ) ) {
+			return false;
+		}
+		$attempts = (int) get_transient( self::IP_ATTEMPTS_PREFIX . md5( $ip ) );
+		return $attempts >= ( $this->max_attempts * self::IP_MULTIPLIER );
 	}
 }

@@ -6,7 +6,9 @@
  * @var string     $provider
  * @var array      $required_roles
  * @var array      $all_roles
- * @var array|null $audit_log   Only set when $active_tab === 'audit_log'.
+ * @var array|null $audit_log        Only set when $active_tab === 'audit_log'.
+ * @var array|null $setup_checklist  Null once dismissed or setup is complete.
+ * @var array|null $adoption         Only set when $active_tab === 'security'.
  */
 defined( 'ABSPATH' ) || exit;
 ?>
@@ -17,7 +19,46 @@ defined( 'ABSPATH' ) || exit;
 		<?php esc_html_e( 'SMSentry — Two-Factor Authentication', 'smsentry' ); ?>
 	</h1>
 
-	<?php settings_errors( 'smsentry_settings' ); ?>
+	<?php settings_errors(); ?>
+
+	<?php if ( $setup_checklist ) : ?>
+		<div class="smsentry-setup-checklist" id="smsentry-setup-checklist">
+			<button type="button" id="smsentry-dismiss-setup" class="smsentry-setup-dismiss" aria-label="<?php esc_attr_e( 'Dismiss', 'smsentry' ); ?>">&times;</button>
+			<h2><?php esc_html_e( 'Finish setting up SMSentry', 'smsentry' ); ?></h2>
+			<ul>
+				<li class="<?php echo $setup_checklist['credentials'] ? 'is-done' : ''; ?>">
+					<span class="smsentry-checklist-icon"><?php echo $setup_checklist['credentials'] ? '&#10003;' : '&#9675;'; ?></span>
+					<?php
+					printf(
+						/* translators: link to Provider tab */
+						esc_html__( 'Add your SMS provider credentials on the %s tab.', 'smsentry' ),
+						'<a href="' . esc_url( add_query_arg( 'tab', 'provider', admin_url( 'admin.php?page=smsentry' ) ) ) . '">' . esc_html__( 'SMS Provider', 'smsentry' ) . '</a>'
+					);
+					?>
+				</li>
+				<li class="<?php echo $setup_checklist['test_sent'] ? 'is-done' : ''; ?>">
+					<span class="smsentry-checklist-icon"><?php echo $setup_checklist['test_sent'] ? '&#10003;' : '&#9675;'; ?></span>
+					<?php
+					printf(
+						/* translators: link to Test & Validate tab */
+						esc_html__( 'Send a test message from the %s tab to confirm delivery works.', 'smsentry' ),
+						'<a href="' . esc_url( add_query_arg( 'tab', 'test', admin_url( 'admin.php?page=smsentry' ) ) ) . '">' . esc_html__( 'Test & Validate', 'smsentry' ) . '</a>'
+					);
+					?>
+				</li>
+				<li class="<?php echo $setup_checklist['own_2fa'] ? 'is-done' : ''; ?>">
+					<span class="smsentry-checklist-icon"><?php echo $setup_checklist['own_2fa'] ? '&#10003;' : '&#9675;'; ?></span>
+					<?php
+					printf(
+						/* translators: link to own profile page */
+						esc_html__( 'Enable 2FA on your own account from your %s.', 'smsentry' ),
+						'<a href="' . esc_url( admin_url( 'profile.php' ) ) . '#smsentry-profile-2fa">' . esc_html__( 'profile page', 'smsentry' ) . '</a>'
+					);
+					?>
+				</li>
+			</ul>
+		</div>
+	<?php endif; ?>
 
 	<nav class="nav-tab-wrapper">
 		<a href="<?php echo esc_url( add_query_arg( 'tab', 'provider', admin_url( 'admin.php?page=smsentry' ) ) ); ?>"
@@ -39,7 +80,7 @@ defined( 'ABSPATH' ) || exit;
 	</nav>
 
 	<form method="post" action="options.php">
-		<?php settings_fields( 'smsentry_settings' ); ?>
+		<?php settings_fields( 'security' === $active_tab ? 'smsentry_security_settings' : 'smsentry_provider_settings' ); ?>
 
 		<?php if ( 'provider' === $active_tab ) : ?>
 
@@ -74,9 +115,9 @@ defined( 'ABSPATH' ) || exit;
 					<th scope="row"><label for="smsentry_twilio_token"><?php esc_html_e( 'Auth Token', 'smsentry' ); ?></label></th>
 					<td>
 						<input type="password" id="smsentry_twilio_token" name="smsentry_twilio_token"
-						       value="" placeholder="<?php echo get_option( 'smsentry_twilio_token' ) ? '••••••••' : ''; ?>"
-						       class="regular-text" autocomplete="new-password" />
-						<p class="description"><?php esc_html_e( 'Leave blank to keep the existing token.', 'smsentry' ); ?></p>
+						       value="<?php echo get_option( 'smsentry_twilio_token' ) ? esc_attr( '••••••••' ) : ''; ?>"
+						       class="regular-text" autocomplete="off" />
+						<p class="description"><?php esc_html_e( 'Shows •••••••• when a token is already saved. Clear it and type a new one to replace it, or leave it as-is to keep the current token.', 'smsentry' ); ?></p>
 					</td>
 				</tr>
 				<tr>
@@ -110,9 +151,9 @@ defined( 'ABSPATH' ) || exit;
 					<th scope="row"><label for="smsentry_vonage_secret"><?php esc_html_e( 'API Secret', 'smsentry' ); ?></label></th>
 					<td>
 						<input type="password" id="smsentry_vonage_secret" name="smsentry_vonage_secret"
-						       value="" placeholder="<?php echo get_option( 'smsentry_vonage_secret' ) ? '••••••••' : ''; ?>"
-						       class="regular-text" autocomplete="new-password" />
-						<p class="description"><?php esc_html_e( 'Leave blank to keep the existing secret.', 'smsentry' ); ?></p>
+						       value="<?php echo get_option( 'smsentry_vonage_secret' ) ? esc_attr( '••••••••' ) : ''; ?>"
+						       class="regular-text" autocomplete="off" />
+						<p class="description"><?php esc_html_e( 'Shows •••••••• when a secret is already saved. Clear it and type a new one to replace it, or leave it as-is to keep the current secret.', 'smsentry' ); ?></p>
 					</td>
 				</tr>
 				<tr>
@@ -128,6 +169,31 @@ defined( 'ABSPATH' ) || exit;
 		</div>
 
 		<?php elseif ( 'security' === $active_tab ) : ?>
+
+		<div class="smsentry-adoption-widget">
+			<h2><?php esc_html_e( '2FA Adoption', 'smsentry' ); ?></h2>
+			<div class="smsentry-adoption-cards">
+				<div class="smsentry-adoption-card">
+					<span class="smsentry-adoption-number"><?php echo esc_html( $adoption['enabled'] ); ?> / <?php echo esc_html( $adoption['total'] ); ?></span>
+					<span class="smsentry-adoption-label"><?php esc_html_e( 'Users with 2FA active', 'smsentry' ); ?></span>
+				</div>
+				<div class="smsentry-adoption-card">
+					<span class="smsentry-adoption-number"><?php echo esc_html( $adoption['sms_count'] ); ?></span>
+					<span class="smsentry-adoption-label"><?php esc_html_e( 'Via SMS', 'smsentry' ); ?></span>
+				</div>
+				<div class="smsentry-adoption-card">
+					<span class="smsentry-adoption-number"><?php echo esc_html( $adoption['email_count'] ); ?></span>
+					<span class="smsentry-adoption-label"><?php esc_html_e( 'Via Email', 'smsentry' ); ?></span>
+				</div>
+				<div class="smsentry-adoption-card <?php echo $adoption['required_missing'] > 0 ? 'smsentry-adoption-card-warning' : ''; ?>">
+					<span class="smsentry-adoption-number"><?php echo esc_html( $adoption['required_missing'] ); ?> / <?php echo esc_html( $adoption['required_total'] ); ?></span>
+					<span class="smsentry-adoption-label"><?php esc_html_e( 'Required but not set up', 'smsentry' ); ?></span>
+				</div>
+			</div>
+			<?php if ( 0 === $adoption['required_total'] ) : ?>
+				<p class="description"><?php esc_html_e( 'No roles are currently required and no users are individually enforced — set this up below or from the Users list.', 'smsentry' ); ?></p>
+			<?php endif; ?>
+		</div>
 
 		<table class="form-table" role="presentation">
 			<tr>
@@ -194,6 +260,32 @@ defined( 'ABSPATH' ) || exit;
 					</label>
 					<p class="description">
 						<?php esc_html_e( 'Covers two cases: users who opt into email codes from their profile, and users under a required role who have not yet verified a phone. Uncheck to require SMS only.', 'smsentry' ); ?>
+					</p>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"><?php esc_html_e( 'Security Alert Emails', 'smsentry' ); ?></th>
+				<td>
+					<label>
+						<input type="checkbox" name="smsentry_security_emails_enabled" value="1"
+						       <?php checked( get_option( 'smsentry_security_emails_enabled', true ) ); ?> />
+						<?php esc_html_e( 'Email users when their 2FA settings change', 'smsentry' ); ?>
+					</label>
+					<p class="description">
+						<?php esc_html_e( 'Covers phone verification, enabling/disabling 2FA, regenerating backup codes, and account lockouts — so a user finds out if an attacker changes their security settings.', 'smsentry' ); ?>
+					</p>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"><?php esc_html_e( 'Remember Device', 'smsentry' ); ?></th>
+				<td>
+					<label>
+						<input type="checkbox" name="smsentry_remember_device_enabled" value="1"
+						       <?php checked( get_option( 'smsentry_remember_device_enabled', true ) ); ?> />
+						<?php esc_html_e( 'Let users skip the code on a trusted device for 30 days', 'smsentry' ); ?>
+					</label>
+					<p class="description">
+						<?php esc_html_e( 'Uncheck to require a code on every login, even from a previously trusted browser.', 'smsentry' ); ?>
 					</p>
 				</td>
 			</tr>

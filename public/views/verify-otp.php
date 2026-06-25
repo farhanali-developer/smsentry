@@ -13,6 +13,7 @@
  * @var string      $resend_nonce     Nonce for the resend AJAX call.
  * @var string      $ajax_url         admin-ajax.php URL.
  * @var bool        $has_backup_codes Whether this user has any unused backup codes.
+ * @var bool        $can_remember_device Whether the remember-device option is enabled site-wide.
  */
 defined( 'ABSPATH' ) || exit;
 ?>
@@ -89,6 +90,15 @@ defined( 'ABSPATH' ) || exit;
 				<?php esc_html_e( 'Remember me', 'smsentry' ); ?>
 			</label>
 		</p>
+
+		<?php if ( $can_remember_device ) : ?>
+			<p class="smsentry-remember">
+				<label>
+					<input type="checkbox" name="smsentry_remember_device" id="smsentry_remember_device" value="1" />
+					<?php esc_html_e( 'Trust this device for 30 days (skip the code next time)', 'smsentry' ); ?>
+				</label>
+			</p>
+		<?php endif; ?>
 
 	</form>
 

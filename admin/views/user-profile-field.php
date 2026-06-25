@@ -13,6 +13,7 @@
  * @var bool    $can_edit
  * @var string  $active_method          'sms' | 'email' | 'none'
  * @var int     $backup_codes_remaining
+ * @var int     $trusted_device_count
  */
 defined( 'ABSPATH' ) || exit;
 ?>
@@ -72,6 +73,7 @@ defined( 'ABSPATH' ) || exit;
 		<?php endif; ?>
 
 		<?php require __DIR__ . '/backup-codes-widget.php'; ?>
+		<?php require __DIR__ . '/trusted-devices-widget.php'; ?>
 
 		<?php if ( $can_edit ) : ?>
 			<hr style="margin: 20px 0;">
@@ -110,6 +112,7 @@ defined( 'ABSPATH' ) || exit;
 		<?php endif; ?>
 
 		<?php require __DIR__ . '/backup-codes-widget.php'; ?>
+		<?php require __DIR__ . '/trusted-devices-widget.php'; ?>
 
 		<?php if ( $can_edit ) : ?>
 			<hr style="margin: 20px 0;">

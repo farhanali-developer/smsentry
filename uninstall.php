@@ -16,6 +16,9 @@ $options = array(
 	'smsentry_required_roles',
 	'smsentry_user_can_disable',
 	'smsentry_email_fallback_enabled',
+	'smsentry_security_emails_enabled',
+	'smsentry_remember_device_enabled',
+	'smsentry_test_sms_sent',
 	'smsentry_db_version',
 );
 
@@ -30,6 +33,9 @@ $meta_keys = array(
 	'smsentry_2fa_enabled',
 	'smsentry_backup_codes',
 	'smsentry_email_2fa_enabled',
+	'smsentry_force_required',
+	'smsentry_trusted_devices',
+	'smsentry_setup_notice_dismissed',
 );
 
 foreach ( $meta_keys as $key ) {

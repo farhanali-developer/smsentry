@@ -53,6 +53,12 @@ class SMSentry_Audit_Log {
 			),
 			array( '%d', '%s', '%s', '%s', '%s' )
 		);
+
+		/**
+		 * Fires after a security event is written to the audit log.
+		 * Used by SMSentry_Notifier to send security alert emails.
+		 */
+		do_action( 'smsentry_audit_logged', $user_id, $event_type, $details );
 	}
 
 	/**
@@ -114,7 +120,10 @@ class SMSentry_Audit_Log {
 			'login_success'          => __( 'Login succeeded', 'smsentry' ),
 			'login_failed'           => __( 'Code incorrect', 'smsentry' ),
 			'lockout'                => __( 'Locked out (too many attempts)', 'smsentry' ),
+			'ip_lockout'             => __( 'IP address locked out', 'smsentry' ),
 			'otp_send_failed'        => __( 'Code delivery failed', 'smsentry' ),
+			'device_trusted'         => __( 'Device remembered (30 days)', 'smsentry' ),
+			'devices_forgotten'      => __( 'All trusted devices forgotten', 'smsentry' ),
 			'phone_verified'         => __( 'Phone number verified', 'smsentry' ),
 			'2fa_enabled'            => __( '2FA enabled', 'smsentry' ),
 			'2fa_disabled'           => __( '2FA disabled / removed', 'smsentry' ),

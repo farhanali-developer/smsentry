@@ -417,3 +417,113 @@
 	gap: 8px;
 	flex-wrap: wrap;
 }
+
+/* ── First-run setup checklist ───────────────────────────────────────── */
+.smsentry-setup-checklist {
+	position: relative;
+	margin: 16px 0;
+	padding: 16px 20px;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-left: 4px solid #2271b1;
+	border-radius: 4px;
+}
+
+.smsentry-setup-checklist h2 {
+	margin-top: 0;
+	font-size: 1.05em;
+}
+
+.smsentry-setup-checklist ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.smsentry-setup-checklist li {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	padding: 4px 0;
+}
+
+.smsentry-setup-checklist li.is-done {
+	color: #50575e;
+	text-decoration: line-through;
+}
+
+.smsentry-checklist-icon {
+	flex: 0 0 auto;
+	font-weight: 700;
+	color: #2271b1;
+}
+
+.smsentry-setup-checklist li.is-done .smsentry-checklist-icon {
+	color: #00a32a;
+}
+
+.smsentry-setup-dismiss {
+	position: absolute;
+	top: 10px;
+	right: 12px;
+	background: none;
+	border: none;
+	font-size: 18px;
+	line-height: 1;
+	color: #787c82;
+	cursor: pointer;
+	padding: 4px;
+}
+
+.smsentry-setup-dismiss:hover {
+	color: #1d2327;
+}
+
+/* ── Adoption widget (Security tab) ──────────────────────────────────── */
+.smsentry-adoption-widget {
+	margin-bottom: 24px;
+}
+
+.smsentry-adoption-widget h2 {
+	font-size: 1.05em;
+}
+
+.smsentry-adoption-cards {
+	display: flex;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+
+.smsentry-adoption-card {
+	flex: 1 1 160px;
+	min-width: 160px;
+	padding: 14px 16px;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.smsentry-adoption-card-warning {
+	border-color: #dba617;
+	background: #fff8e5;
+}
+
+.smsentry-adoption-number {
+	font-size: 1.6em;
+	font-weight: 600;
+	color: #1d2327;
+}
+
+.smsentry-adoption-label {
+	font-size: 0.85em;
+	color: #50575e;
+}
+
+/* ── Users list 2FA column ───────────────────────────────────────────── */
+.smsentry-badge-enforced {
+	background: #fff8e5;
+	color: #8a6200;
+}

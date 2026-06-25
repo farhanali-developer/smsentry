@@ -23,28 +23,42 @@ class SMSentry_CLI_Command {
 	 * List users who have 2FA configured.
 	 */
 	public function list( array $args, array $assoc_args ): void {
-		$users = get_users( array(
-			'meta_key'     => 'smsentry_phone_verified',
-			'meta_value'   => '1',
-			'meta_compare' => '=',
-		) );
+		$meta_keys = array( 'smsentry_phone_verified', 'smsentry_email_2fa_enabled', 'smsentry_force_required' );
+		$user_ids  = array();
 
-		if ( empty( $users ) ) {
+		foreach ( $meta_keys as $meta_key ) {
+			$user_ids = array_merge( $user_ids, get_users( array(
+				'meta_key'     => $meta_key,
+				'meta_value'   => '1',
+				'meta_compare' => '=',
+				'fields'       => 'ID',
+			) ) );
+		}
+
+		$user_ids = array_unique( $user_ids );
+
+		if ( empty( $user_ids ) ) {
 			WP_CLI::log( 'No users have 2FA configured.' );
 			return;
 		}
 
 		$rows = array();
-		foreach ( $users as $user ) {
+		foreach ( $user_ids as $user_id ) {
+			$user = get_userdata( $user_id );
+			if ( ! $user ) {
+				continue;
+			}
+
 			$rows[] = array(
-				'ID'      => $user->ID,
-				'login'   => $user->user_login,
-				'status'  => get_user_meta( $user->ID, 'smsentry_2fa_enabled', true ) ? 'enabled' : 'paused',
-				'phone'   => $this->mask_phone( (string) get_user_meta( $user->ID, 'smsentry_phone', true ) ),
+				'ID'       => $user_id,
+				'login'    => $user->user_login,
+				'method'   => SMSentry_Plugin::get_2fa_method( $user_id ) ?? 'none (paused)',
+				'enforced' => get_user_meta( $user_id, 'smsentry_force_required', true ) ? 'yes' : 'no',
+				'phone'    => $this->mask_phone( (string) get_user_meta( $user_id, 'smsentry_phone', true ) ),
 			);
 		}
 
-		WP_CLI\Utils\format_items( 'table', $rows, array( 'ID', 'login', 'status', 'phone' ) );
+		WP_CLI\Utils\format_items( 'table', $rows, array( 'ID', 'login', 'method', 'enforced', 'phone' ) );
 	}
 
 	/**
@@ -96,6 +110,9 @@ class SMSentry_CLI_Command {
 		delete_user_meta( $user_id, 'smsentry_phone_verified' );
 		delete_user_meta( $user_id, 'smsentry_2fa_enabled' );
 		delete_user_meta( $user_id, 'smsentry_backup_codes' );
+		delete_user_meta( $user_id, 'smsentry_email_2fa_enabled' );
+		delete_user_meta( $user_id, 'smsentry_force_required' );
+		( new SMSentry_Device_Trust() )->forget_all( $user_id );
 	}
 
 	private function find_user( string $identifier ): WP_User|false {

@@ -18,6 +18,7 @@ defined( 'ABSPATH' ) || exit;
 						<?php SMSentry_Countries::render_picker( 'smsentry-new-phone-country', 'smsentry_phone_country' ); ?>
 						<input type="tel"
 						       id="smsentry-new-phone"
+						       name="smsentry_pending_phone"
 						       class="smsentry-phone-number"
 						       placeholder="4155551234"
 						       autocomplete="tel" />
@@ -27,7 +28,10 @@ defined( 'ABSPATH' ) || exit;
 					</button>
 				</div>
 				<p class="description">
-					<?php esc_html_e( 'Select your country, then enter your number without the country code or leading zero.', 'smsentry' ); ?>
+					<?php esc_html_e( 'Select your country, then enter your number without the country code or leading zero — or paste a full number like +14155551234 and the country will be detected automatically.', 'smsentry' ); ?>
+				</p>
+				<p class="description">
+					<strong><?php esc_html_e( 'Click "Send Verification Code" above to save this number — the "Update Profile" button at the bottom of the page will not save it.', 'smsentry' ); ?></strong>
 				</p>
 			</td>
 		</tr>

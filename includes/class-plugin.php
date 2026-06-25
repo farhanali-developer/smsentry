@@ -9,6 +9,7 @@ class SMSentry_Plugin {
 	public SMSentry_Authenticator $authenticator;
 	public SMSentry_Session $session;
 	public SMSentry_Rate_Limiter $rate_limiter;
+	public SMSentry_Device_Trust $device_trust;
 
 	public static function instance(): self {
 		if ( null === self::$instance ) {
@@ -29,6 +30,7 @@ class SMSentry_Plugin {
 			$this->provider,
 			(int) get_option( 'smsentry_otp_ttl', 300 )
 		);
+		$this->device_trust  = new SMSentry_Device_Trust();
 
 		$this->boot();
 	}
@@ -38,12 +40,15 @@ class SMSentry_Plugin {
 
 		$this->maybe_upgrade_db();
 
-		$login_handler = new SMSentry_Login_Handler( $this->authenticator, $this->session, $this->rate_limiter );
+		( new SMSentry_Notifier() )->register();
+
+		$login_handler = new SMSentry_Login_Handler( $this->authenticator, $this->session, $this->rate_limiter, $this->device_trust );
 		$login_handler->register();
 
 		if ( is_admin() ) {
 			( new SMSentry_Admin( $this ) )->register();
-			( new SMSentry_User_Profile( $this->authenticator ) )->register();
+			( new SMSentry_User_Profile( $this->authenticator, $this->device_trust ) )->register();
+			( new SMSentry_Users_List() )->register();
 		}
 	}
 
@@ -89,10 +94,14 @@ class SMSentry_Plugin {
 	 *
 	 * Priority:
 	 *   1. SMENTRY_DISABLE_2FA constant — emergency bypass, always wins.
-	 *   2. Verified phone + (opted in OR role-required) — 'sms'.
-	 *   3. No verified phone, but email 2FA opted in, OR role requires 2FA
+	 *   2. Verified phone + (opted in OR required) — 'sms'.
+	 *   3. No verified phone, but email 2FA opted in, OR 2FA is required
 	 *      and email fallback is allowed — 'email'.
 	 *   4. Otherwise — null (no 2FA for this login).
+	 *
+	 * "Required" means the user's role is in smsentry_required_roles, OR an
+	 * admin individually enforced 2FA for this specific user (Users list
+	 * bulk action), regardless of role.
 	 */
 	public static function get_2fa_method( int $user_id ): ?string {
 		if ( defined( 'SMSENTRY_DISABLE_2FA' ) && SMSENTRY_DISABLE_2FA ) {
@@ -105,7 +114,9 @@ class SMSentry_Plugin {
 		}
 
 		$required_roles = (array) get_option( 'smsentry_required_roles', array() );
-		$role_required   = ! empty( $required_roles ) && array_intersect( $user->roles, $required_roles );
+		$role_required  = ! empty( $required_roles ) && array_intersect( $user->roles, $required_roles );
+		$user_required  = (bool) get_user_meta( $user_id, 'smsentry_force_required', true );
+		$role_required  = $role_required || $user_required;
 
 		$phone_verified = (bool) get_user_meta( $user_id, 'smsentry_phone_verified', true );
 

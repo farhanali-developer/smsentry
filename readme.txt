@@ -4,7 +4,7 @@ Tags:              two-factor authentication, 2fa, sms, twilio, vonage
 Requires at least: 6.0
 Tested up to:      7.0
 Requires PHP:      8.0
-Stable tag:        1.2.0
+Stable tag:        1.3.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -30,6 +30,12 @@ SMSentry adds a second layer of protection to your WordPress site by requiring u
 * Emergency break-glass bypass (wp-config.php constant + WP-CLI) for site-wide lockouts
 * Email OTP fallback for users without a verified phone — voluntary opt-in or admin-enforced by role
 * Audit log of logins, failed attempts, lockouts, and 2FA changes — visible under SMSentry → Audit Log
+* 2FA status column and a per-user "Enforce 2FA" bulk action on the WordPress Users list
+* Security alert emails when 2FA/phone settings change, so users notice if an attacker disables their 2FA
+* Per-IP rate limiting, on top of per-user, to stop credential-stuffing across many accounts
+* "Remember this device" for 30 days, with a one-click "Forget All Devices" control
+* First-run setup checklist and a live 2FA adoption widget on the settings page
+* Paste a full international number and the country is detected automatically
 * No third-party PHP SDKs required — uses WordPress HTTP API and wp_mail() throughout
 * Full i18n support with `.pot` file
 
@@ -97,6 +103,18 @@ Yes. On your profile page, click "Use Email Instead" to receive login codes at y
 
 Yes. **SMSentry → Audit Log** shows logins, failed code attempts, lockouts, and 2FA/phone/email changes, with the date, user, event, and IP address. Filter by user or event type. Entries older than 90 days are pruned automatically.
 
+= Can I require 2FA for one specific user without changing their role? =
+
+Yes. Go to **Users**, select one or more users, and choose **Enforce 2FA** from the bulk actions dropdown. This works independently of the role-based "Require 2FA for Roles" setting in Security.
+
+= Will I find out if someone disables my 2FA? =
+
+Yes, by default. SMSentry emails the account owner whenever phone verification, 2FA enabled/disabled, email 2FA, or backup code regeneration happens, plus on lockouts. Turn this off under **SMSentry → Security → Security Alert Emails**.
+
+= Do I have to enter a code every single time I log in? =
+
+Not if you check "Trust this device for 30 days" on the verification screen — that browser will skip the code until the trust expires or you click "Forget All Devices" on your profile. Admins can disable this site-wide under **SMSentry → Security → Remember Device**.
+
 == Screenshots ==
 
 1. The SMS verification screen shown after a successful password entry.
@@ -105,8 +123,19 @@ Yes. **SMSentry → Audit Log** shows logins, failed code attempts, lockouts, an
 4. The 2FA section on a user's profile page.
 5. Backup codes displayed once after generation.
 6. The Audit Log tab.
+7. The 2FA status column and bulk action on the Users list.
+8. The 2FA adoption widget on the Security tab.
 
 == Changelog ==
+
+= 1.3.0 =
+* Added a 2FA status column and per-user "Enforce 2FA" bulk action to the Users list.
+* Added security alert emails on phone/2FA configuration changes and lockouts.
+* Added per-IP rate limiting alongside the existing per-user limiting.
+* Added "Remember this device" (30 days) with a profile-page "Forget All Devices" control.
+* Added a first-run setup checklist and a 2FA adoption widget to the settings page.
+* Added automatic country detection when pasting a full international number into a phone field.
+* `wp smsentry list` and `wp smsentry reset` now cover email 2FA, per-user enforcement, and trusted devices.
 
 = 1.2.0 =
 * Added email OTP fallback for users without a verified phone (voluntary opt-in or admin-enforced by role).
@@ -127,6 +156,9 @@ Yes. **SMSentry → Audit Log** shows logins, failed code attempts, lockouts, an
 * AES-256-CBC encryption for stored API secrets.
 
 == Upgrade Notice ==
+
+= 1.3.0 =
+No breaking changes. Existing users keep working exactly as before; new options default to sensible values (security emails and remember-device are on by default).
 
 = 1.2.0 =
 No breaking changes. A new database table is created automatically on update.

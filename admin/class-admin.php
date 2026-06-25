@@ -15,6 +15,7 @@ class SMSentry_Admin {
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
 		add_action( 'wp_ajax_smsentry_test_sms', array( $this, 'ajax_test_sms' ) );
 		add_action( 'wp_ajax_smsentry_validate_credentials', array( $this, 'ajax_validate_credentials' ) );
+		add_action( 'wp_ajax_smsentry_dismiss_setup_notice', array( $this, 'ajax_dismiss_setup_notice' ) );
 		add_filter( 'plugin_action_links_' . plugin_basename( SMSENTRY_FILE ), array( $this, 'add_action_links' ) );
 	}
 
@@ -40,45 +41,66 @@ class SMSentry_Admin {
 		);
 	}
 
+	/**
+	 * Two separate option groups — one per tab. Each tab's <form> only
+	 * renders its own fields, and WordPress's options.php nulls out any
+	 * registered option that isn't present in the submitted POST data. With
+	 * a single shared group, saving the Security tab would wipe every
+	 * Provider tab option (and vice versa). Splitting by tab means saving
+	 * one tab never touches the other's settings at all.
+	 */
 	public function register_settings(): void {
-		$simple_fields = array(
-			'smsentry_provider'         => 'sanitize_text_field',
-			'smsentry_twilio_sid'       => 'sanitize_text_field',
-			'smsentry_twilio_from'      => 'sanitize_text_field',
-			'smsentry_vonage_key'       => 'sanitize_text_field',
-			'smsentry_vonage_from'      => 'sanitize_text_field',
-			'smsentry_otp_ttl'          => 'absint',
-			'smsentry_max_attempts'     => 'absint',
-			'smsentry_lockout_duration' => 'absint',
+		$provider_fields = array(
+			'smsentry_provider'    => 'sanitize_text_field',
+			'smsentry_twilio_sid'  => 'sanitize_text_field',
+			'smsentry_twilio_from' => 'sanitize_text_field',
+			'smsentry_vonage_key'  => 'sanitize_text_field',
+			'smsentry_vonage_from' => 'sanitize_text_field',
 		);
 
-		foreach ( $simple_fields as $option => $callback ) {
-			register_setting( 'smsentry_settings', $option, array( 'sanitize_callback' => $callback ) );
+		foreach ( $provider_fields as $option => $callback ) {
+			register_setting( 'smsentry_provider_settings', $option, array( 'sanitize_callback' => $callback ) );
 		}
 
-		// Secrets are encrypted before storage.
-		register_setting( 'smsentry_settings', 'smsentry_twilio_token', array(
-			'sanitize_callback' => array( $this, 'sanitize_secret' ),
+		// Secrets are encrypted before storage. Separate methods per field — no fragile
+		// introspection of which filter fired, unlike the single shared callback this replaces.
+		register_setting( 'smsentry_provider_settings', 'smsentry_twilio_token', array(
+			'sanitize_callback' => array( $this, 'sanitize_twilio_token' ),
 		) );
-		register_setting( 'smsentry_settings', 'smsentry_vonage_secret', array(
-			'sanitize_callback' => array( $this, 'sanitize_secret' ),
+		register_setting( 'smsentry_provider_settings', 'smsentry_vonage_secret', array(
+			'sanitize_callback' => array( $this, 'sanitize_vonage_secret' ),
 		) );
 
-		register_setting( 'smsentry_settings', 'smsentry_required_roles', array(
+		$security_fields = array(
+			'smsentry_otp_ttl'                 => 'absint',
+			'smsentry_max_attempts'             => 'absint',
+			'smsentry_lockout_duration'         => 'absint',
+			'smsentry_user_can_disable'         => 'rest_sanitize_boolean',
+			'smsentry_email_fallback_enabled'   => 'rest_sanitize_boolean',
+			'smsentry_security_emails_enabled'  => 'rest_sanitize_boolean',
+			'smsentry_remember_device_enabled'  => 'rest_sanitize_boolean',
+		);
+
+		foreach ( $security_fields as $option => $callback ) {
+			register_setting( 'smsentry_security_settings', $option, array( 'sanitize_callback' => $callback ) );
+		}
+
+		register_setting( 'smsentry_security_settings', 'smsentry_required_roles', array(
 			'sanitize_callback' => array( $this, 'sanitize_roles' ),
-		) );
-		register_setting( 'smsentry_settings', 'smsentry_user_can_disable', array(
-			'sanitize_callback' => 'rest_sanitize_boolean',
-		) );
-		register_setting( 'smsentry_settings', 'smsentry_email_fallback_enabled', array(
-			'sanitize_callback' => 'rest_sanitize_boolean',
 		) );
 	}
 
-	public function sanitize_secret( string $value ): string {
+	public function sanitize_twilio_token( string $value ): string {
 		// If the field was left blank (or is the placeholder), keep the existing value.
 		if ( empty( $value ) || '••••••••' === $value ) {
-			return get_option( 'smsentry_' . current_filter() === 'sanitize_option_smsentry_twilio_token' ? 'smsentry_twilio_token' : 'smsentry_vonage_secret', '' );
+			return (string) get_option( 'smsentry_twilio_token', '' );
+		}
+		return SMSentry_Crypto::encrypt( sanitize_text_field( $value ) );
+	}
+
+	public function sanitize_vonage_secret( string $value ): string {
+		if ( empty( $value ) || '••••••••' === $value ) {
+			return (string) get_option( 'smsentry_vonage_secret', '' );
 		}
 		return SMSentry_Crypto::encrypt( sanitize_text_field( $value ) );
 	}
@@ -100,12 +122,56 @@ class SMSentry_Admin {
 		$provider       = get_option( 'smsentry_provider', 'twilio' );
 		$required_roles = (array) get_option( 'smsentry_required_roles', array() );
 		$all_roles      = wp_roles()->get_names();
+		$setup_checklist = $this->prepare_setup_checklist();
 
 		if ( 'audit_log' === $active_tab ) {
 			$audit_log = $this->prepare_audit_log_data();
 		}
 
+		if ( 'security' === $active_tab ) {
+			$adoption = SMSentry_Stats::get_adoption_summary();
+		}
+
 		require SMSENTRY_DIR . 'admin/views/settings-page.php';
+	}
+
+	/**
+	 * Build the first-run setup checklist shown above the tabs. Returns null
+	 * once dismissed by the current admin, or once the core steps (provider
+	 * credentials + a successful test send) are both complete.
+	 */
+	private function prepare_setup_checklist(): ?array {
+		$current_user_id = get_current_user_id();
+
+		if ( (bool) get_user_meta( $current_user_id, 'smsentry_setup_notice_dismissed', true ) ) {
+			return null;
+		}
+
+		$has_credentials = $this->has_provider_credentials();
+		$test_sent        = (bool) get_option( 'smsentry_test_sms_sent', false );
+
+		if ( $has_credentials && $test_sent ) {
+			return null;
+		}
+
+		return array(
+			'credentials' => $has_credentials,
+			'test_sent'   => $test_sent,
+			'own_2fa'     => null !== SMSentry_Plugin::get_2fa_method( $current_user_id ),
+		);
+	}
+
+	private function has_provider_credentials(): bool {
+		if ( 'vonage' === get_option( 'smsentry_provider', 'twilio' ) ) {
+			return ! empty( get_option( 'smsentry_vonage_key' ) ) && ! empty( get_option( 'smsentry_vonage_secret' ) );
+		}
+		return ! empty( get_option( 'smsentry_twilio_sid' ) ) && ! empty( get_option( 'smsentry_twilio_token' ) );
+	}
+
+	public function ajax_dismiss_setup_notice(): void {
+		check_ajax_referer( 'smsentry_admin', 'nonce' );
+		update_user_meta( get_current_user_id(), 'smsentry_setup_notice_dismissed', true );
+		wp_send_json_success();
 	}
 
 	/**
@@ -184,6 +250,8 @@ class SMSentry_Admin {
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
 		}
+
+		update_option( 'smsentry_test_sms_sent', true );
 
 		wp_send_json_success( array( 'message' => __( 'Test SMS sent successfully!', 'smsentry' ) ) );
 	}
