@@ -1,0 +1,312 @@
+/* =========================================================
+   SMSentry — shared styles for login page, admin settings,
+   and user profile sections.
+   ========================================================= */
+
+/* ── Login page — OTP verify screen ─────────────────────── */
+.smsentry-verify-title {
+	font-size: 1.1em;
+	font-weight: 600;
+	margin-bottom: 0.4em;
+	text-align: left;
+	color: #1d2327;
+}
+
+.smsentry-verify-hint {
+	color: #50575e;
+	margin-bottom: 1.4em;
+	font-size: 0.92em;
+	line-height: 1.5;
+}
+
+.smsentry-login-error {
+	background: #fcf0f1;
+	border-left: 4px solid #d63638;
+	padding: 10px 14px;
+	margin-bottom: 16px;
+	border-radius: 2px;
+	font-size: 0.9em;
+	color: #1d2327;
+}
+
+.smsentry-otp-input {
+	letter-spacing: 0.35em;
+	font-size: 1.5em !important;
+	text-align: center;
+	width: 160px !important;
+	padding: 8px 12px !important;
+	border-radius: 4px;
+	font-family: monospace;
+}
+
+.smsentry-remember {
+	margin-top: 0.5em;
+}
+
+.smsentry-resend-row {
+	margin-top: 1.2em;
+	text-align: center;
+	font-size: 0.88em;
+	color: #50575e;
+}
+
+#smsentry-resend-btn {
+	color: #2271b1;
+	cursor: pointer;
+	background: none;
+	border: none;
+	padding: 0;
+	font-size: inherit;
+	text-decoration: underline;
+}
+
+#smsentry-resend-btn:hover {
+	color: #135e96;
+}
+
+#smsentry-resend-btn:disabled,
+#smsentry-resend-btn[disabled] {
+	color: #8c8f94;
+	text-decoration: none;
+	cursor: default;
+}
+
+.smsentry-back-link {
+	margin-top: 1em;
+	text-align: center;
+	font-size: 0.85em;
+}
+
+/* ── Shared result/feedback message ──────────────────────── */
+.smsentry-result {
+	font-size: 0.9em;
+	padding: 8px 12px;
+	border-radius: 3px;
+	margin-top: 8px;
+}
+
+.smsentry-result.is-success {
+	background: #edfaef;
+	color: #1a7a2e;
+	border-left: 3px solid #00a32a;
+}
+
+.smsentry-result.is-error {
+	background: #fcf0f1;
+	color: #8a1f1f;
+	border-left: 3px solid #d63638;
+}
+
+/* ── Admin settings page ─────────────────────────────────── */
+.smsentry-settings h1 .smsentry-logo {
+	font-size: 1.2em;
+	margin-right: 6px;
+}
+
+.smsentry-provider-section {
+	margin-top: 20px;
+}
+
+/* ── User profile section ────────────────────────────────── */
+.smsentry-profile-section {
+	margin-top: 2em;
+	padding-top: 1em;
+	border-top: 1px solid #dcdcde;
+}
+
+.smsentry-notice {
+	padding: 10px 14px;
+	border-radius: 3px;
+	margin-bottom: 16px;
+}
+
+.smsentry-notice-warning {
+	background: #fff8e5;
+	border-left: 4px solid #dba617;
+}
+
+.smsentry-badge {
+	display: inline-block;
+	padding: 3px 10px;
+	border-radius: 12px;
+	font-size: 0.82em;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.smsentry-badge-active {
+	background: #edfaef;
+	color: #1a7a2e;
+}
+
+.smsentry-badge-inactive {
+	background: #f0f0f1;
+	color: #50575e;
+}
+
+.smsentry-profile-actions {
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	margin-top: 12px;
+}
+
+.smsentry-phone-setup {
+	margin-top: 12px;
+}
+
+.smsentry-otp-input.small-text {
+	letter-spacing: 0.25em;
+	font-size: 1.2em;
+	font-family: monospace;
+	text-align: center;
+	width: 130px;
+}
+
+/* ── Phone number row: country picker + number input + action button ──── */
+.smsentry-phone-row {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.smsentry-phone-group {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex: 1 1 320px;
+	min-width: 260px;
+}
+
+.smsentry-phone-row .smsentry-country-trigger,
+.smsentry-phone-row .smsentry-phone-number,
+.smsentry-phone-row .smsentry-phone-action {
+	height: 40px;
+	box-sizing: border-box;
+	margin: 0;
+	vertical-align: middle;
+}
+
+.smsentry-phone-number {
+	flex: 1 1 auto;
+	border-radius: 4px;
+	line-height: 30px;
+}
+
+.smsentry-phone-action {
+	flex: 0 0 auto;
+	white-space: nowrap;
+}
+
+/* ── Custom country picker ───────────────────────────────────────────── */
+.smsentry-country-picker {
+	position: relative;
+	flex: 0 0 auto;
+	align-self: center;
+}
+
+.smsentry-country-trigger {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 0 8px;
+	background: #fff;
+	border: 1px solid #8c8f94;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 13px;
+	line-height: 1;
+	color: #2c3338;
+}
+
+.smsentry-country-trigger:hover {
+	background: #f6f7f7;
+}
+
+.smsentry-country-trigger:focus {
+	outline: 2px solid #2271b1;
+	outline-offset: -1px;
+}
+
+.smsentry-country-trigger-flag {
+	font-size: 1.15em;
+	line-height: 1;
+}
+
+.smsentry-country-caret {
+	width: 0;
+	height: 0;
+	margin-left: 2px;
+	border-left: 4px solid transparent;
+	border-right: 4px solid transparent;
+	border-top: 5px solid #50575e;
+}
+
+.smsentry-country-dropdown {
+	position: absolute;
+	top: calc(100% + 4px);
+	left: 0;
+	z-index: 1000;
+	width: 280px;
+	max-width: 90vw;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	padding: 6px;
+}
+
+.smsentry-country-search {
+	width: 100%;
+	box-sizing: border-box;
+	margin-bottom: 6px;
+}
+
+.smsentry-country-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	max-height: 240px;
+	overflow-y: auto;
+}
+
+.smsentry-country-list li {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 13px;
+}
+
+.smsentry-country-list li:hover,
+.smsentry-country-list li.is-highlighted {
+	background: #f0f0f1;
+}
+
+.smsentry-country-list li.is-selected {
+	background: #edf3fa;
+	font-weight: 600;
+}
+
+.smsentry-country-list .smsentry-country-name {
+	flex: 1 1 auto;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.smsentry-country-list .smsentry-country-code {
+	color: #50575e;
+	flex: 0 0 auto;
+}
+
+.smsentry-country-list-empty {
+	padding: 10px;
+	text-align: center;
+	color: #787c82;
+	font-size: 13px;
+}

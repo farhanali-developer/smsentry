@@ -1,0 +1,157 @@
+<?php
+defined( 'ABSPATH' ) || exit;
+
+class SMSentry_User_Profile {
+
+	private SMSentry_Authenticator $authenticator;
+
+	public function __construct( SMSentry_Authenticator $authenticator ) {
+		$this->authenticator = $authenticator;
+	}
+
+	public function register(): void {
+		add_action( 'show_user_profile', array( $this, 'render_2fa_section' ) );
+		add_action( 'edit_user_profile', array( $this, 'render_2fa_section' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
+		add_action( 'wp_ajax_smsentry_send_phone_otp', array( $this, 'ajax_send_phone_otp' ) );
+		add_action( 'wp_ajax_smsentry_verify_phone_otp', array( $this, 'ajax_verify_phone_otp' ) );
+		add_action( 'wp_ajax_smsentry_toggle_2fa', array( $this, 'ajax_toggle_2fa' ) );
+		add_action( 'wp_ajax_smsentry_remove_2fa', array( $this, 'ajax_remove_2fa' ) );
+	}
+
+	public function enqueue_scripts( string $hook ): void {
+		if ( ! in_array( $hook, array( 'profile.php', 'user-edit.php' ), true ) ) {
+			return;
+		}
+
+		wp_enqueue_style( 'smsentry-profile', SMSENTRY_URL . 'assets/css/smsentry.css', array(), SMSENTRY_VERSION );
+		wp_enqueue_script( 'smsentry-profile', SMSENTRY_URL . 'assets/js/smsentry.js', array( 'jquery' ), SMSENTRY_VERSION, true );
+
+		wp_localize_script( 'smsentry-profile', 'smsentryProfile', array(
+			'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+			'nonce'   => wp_create_nonce( 'smsentry_profile' ),
+			'i18n'    => array(
+				'sending'         => __( 'Sending code...', 'smsentry' ),
+				'verifying'       => __( 'Verifying...', 'smsentry' ),
+				'sendCode'        => __( 'Send Verification Code', 'smsentry' ),
+				'resendCode'      => __( 'Resend Code', 'smsentry' ),
+				'verifyCode'      => __( 'Verify Code', 'smsentry' ),
+				'phoneVerified'   => __( '2FA is now active on your account.', 'smsentry' ),
+				'phoneRequired'   => __( 'Please enter your phone number first.', 'smsentry' ),
+				'invalidPhone'    => __( 'Enter a valid number in international format: +14155551234', 'smsentry' ),
+				'confirmRemove'   => __( 'Remove 2FA from your account? You will no longer be required to enter an SMS code on login.', 'smsentry' ),
+			),
+		) );
+	}
+
+	public function render_2fa_section( WP_User $user ): void {
+		$phone          = (string) get_user_meta( $user->ID, 'smsentry_phone', true );
+		$phone_verified = (bool) get_user_meta( $user->ID, 'smsentry_phone_verified', true );
+		$enabled        = (bool) get_user_meta( $user->ID, 'smsentry_2fa_enabled', true );
+		$user_can_disable = (bool) get_option( 'smsentry_user_can_disable', true );
+
+		$required_roles = (array) get_option( 'smsentry_required_roles', array() );
+		$is_required    = (bool) array_intersect( $user->roles, $required_roles );
+
+		// Admins can edit any profile; users can only edit their own.
+		$can_edit = current_user_can( 'manage_options' ) || get_current_user_id() === $user->ID;
+
+		require SMSENTRY_DIR . 'admin/views/user-profile-field.php';
+	}
+
+	public function ajax_send_phone_otp(): void {
+		check_ajax_referer( 'smsentry_profile', 'nonce' );
+
+		$user_id = get_current_user_id();
+		if ( ! $user_id ) {
+			wp_send_json_error( array( 'message' => __( 'You must be logged in.', 'smsentry' ) ) );
+		}
+
+		$phone = sanitize_text_field( wp_unslash( $_POST['phone'] ?? '' ) );
+
+		if ( ! $this->is_valid_e164( $phone ) ) {
+			wp_send_json_error( array( 'message' => __( 'Enter a valid number in E.164 format, e.g. +14155551234', 'smsentry' ) ) );
+		}
+
+		$result = $this->authenticator->send_phone_verification_otp( $phone );
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		wp_send_json_success( array( 'message' => __( 'Verification code sent! Check your phone.', 'smsentry' ) ) );
+	}
+
+	public function ajax_verify_phone_otp(): void {
+		check_ajax_referer( 'smsentry_profile', 'nonce' );
+
+		$user_id = get_current_user_id();
+		if ( ! $user_id ) {
+			wp_send_json_error( array( 'message' => __( 'You must be logged in.', 'smsentry' ) ) );
+		}
+
+		$phone = sanitize_text_field( wp_unslash( $_POST['phone'] ?? '' ) );
+		$otp   = sanitize_text_field( wp_unslash( $_POST['otp'] ?? '' ) );
+
+		if ( ! $this->is_valid_e164( $phone ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid phone number.', 'smsentry' ) ) );
+		}
+
+		$result = $this->authenticator->verify_phone_otp( $phone, $otp );
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		update_user_meta( $user_id, 'smsentry_phone', $phone );
+		update_user_meta( $user_id, 'smsentry_phone_verified', true );
+		update_user_meta( $user_id, 'smsentry_2fa_enabled', true );
+
+		wp_send_json_success( array( 'message' => __( 'Phone verified. Two-factor authentication is now active.', 'smsentry' ) ) );
+	}
+
+	public function ajax_toggle_2fa(): void {
+		check_ajax_referer( 'smsentry_profile', 'nonce' );
+
+		$user_id = get_current_user_id();
+		if ( ! $user_id ) {
+			wp_send_json_error( array( 'message' => __( 'You must be logged in.', 'smsentry' ) ) );
+		}
+
+		if ( ! get_option( 'smsentry_user_can_disable', true ) ) {
+			wp_send_json_error( array( 'message' => __( '2FA is managed by the site administrator.', 'smsentry' ) ) );
+		}
+
+		$enabled = rest_sanitize_boolean( sanitize_text_field( wp_unslash( $_POST['enabled'] ?? '' ) ) );
+		update_user_meta( $user_id, 'smsentry_2fa_enabled', $enabled );
+
+		wp_send_json_success( array(
+			'message' => $enabled
+				? __( 'Two-factor authentication enabled.', 'smsentry' )
+				: __( 'Two-factor authentication disabled.', 'smsentry' ),
+		) );
+	}
+
+	public function ajax_remove_2fa(): void {
+		check_ajax_referer( 'smsentry_profile', 'nonce' );
+
+		$user_id = get_current_user_id();
+		if ( ! $user_id ) {
+			wp_send_json_error( array( 'message' => __( 'You must be logged in.', 'smsentry' ) ) );
+		}
+
+		if ( ! get_option( 'smsentry_user_can_disable', true ) ) {
+			wp_send_json_error( array( 'message' => __( '2FA is managed by the site administrator.', 'smsentry' ) ) );
+		}
+
+		delete_user_meta( $user_id, 'smsentry_phone' );
+		delete_user_meta( $user_id, 'smsentry_phone_verified' );
+		delete_user_meta( $user_id, 'smsentry_2fa_enabled' );
+
+		wp_send_json_success( array( 'message' => __( 'Two-factor authentication has been removed from your account.', 'smsentry' ) ) );
+	}
+
+	private function is_valid_e164( string $phone ): bool {
+		return (bool) preg_match( '/^\+[1-9]\d{6,14}$/', $phone );
+	}
+}
