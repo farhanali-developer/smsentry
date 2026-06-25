@@ -14,7 +14,11 @@ Two-factor authentication for WordPress via SMS. Supports **Twilio** and **Vonag
 - Resend-code cooldown timer
 - Phone number verification flow on profile setup
 - Custom country picker (flag + dial code) for phone number fields
-- Zero third-party PHP SDKs — just `wp_remote_post()`
+- One-time backup codes for account recovery if a phone is lost
+- Emergency break-glass bypass (`wp-config.php` constant + WP-CLI) if SMS delivery fails site-wide
+- Email OTP fallback for users without a verified phone (voluntary opt-in or admin-enforced by role)
+- Audit log of logins, failed attempts, lockouts, and 2FA changes, visible to admins
+- Zero third-party PHP SDKs — just `wp_remote_post()` and `wp_mail()`
 
 ## Requirements
 
@@ -38,6 +42,49 @@ Two-factor authentication for WordPress via SMS. Supports **Twilio** and **Vonag
 4. The user is redirected to a verification screen (still inside `wp-login.php`)
 5. On a correct code, login completes; incorrect codes are rate-limited and the session locks out after a configurable number of attempts
 
+Instead of an SMS code, a user can also enter one of their **backup codes** generated on the profile page — useful if their phone is lost or out of signal.
+
+## Backup codes
+
+Once a phone is verified, users can generate 10 one-time backup codes from their profile page (**Profile → Backup Codes**). Each code:
+
+- Is shown in plain text exactly once, immediately after generation — only a bcrypt hash is stored afterward
+- Can be used exactly once, as a drop-in replacement for the SMS code on the login screen ("Use a backup code instead")
+- Is invalidated (along with the rest of the set) if the user regenerates the list
+
+## Emergency access (break-glass)
+
+Two recovery mechanisms exist for when SMS delivery is broken or a user is otherwise locked out:
+
+**Site-wide bypass** — add to `wp-config.php`:
+
+```php
+define( 'SMSENTRY_DISABLE_2FA', true );
+```
+
+This disables all 2FA enforcement immediately, without touching the database. Useful when the SMS provider account is suspended/out of credit and admins can't log in at all.
+
+**Per-user reset via WP-CLI**:
+
+```bash
+wp smsentry list              # show every user with 2FA configured
+wp smsentry reset <user>      # clear 2FA for one user (ID, login, or email)
+wp smsentry reset --all       # clear 2FA for every user on the site
+```
+
+## Email OTP fallback
+
+For users without a verified phone number, SMSentry can deliver the OTP by email instead, via `wp_mail()`:
+
+- **Voluntary**: from the profile page, a user without a phone can click "Use Email Instead" to enable email-based codes immediately (no verification needed — it's the account's existing, already-trusted email).
+- **Admin-enforced**: if a role is marked "Require 2FA" but a user under that role hasn't verified a phone yet, they're automatically challenged via email instead of being skipped entirely.
+- Verifying a phone number later automatically switches the account back to SMS.
+- Controlled site-wide via **SMSentry → Security → Email Fallback** (on by default).
+
+## Audit log
+
+A dedicated `wp_smsentry_audit_log` table records logins, failed code attempts, lockouts, phone/email 2FA changes, and backup code usage, with timestamp, user, event type, free-text details, and IP address. View and filter it under **SMSentry → Audit Log**. Entries older than 90 days are pruned automatically via WP-Cron (configurable with the `smsentry_audit_log_retention_days` filter).
+
 ## Architecture
 
 ```
@@ -51,6 +98,8 @@ smsentry/
 │   ├── class-rate-limiter.php            # Attempt tracking + lockout
 │   ├── class-crypto.php                  # AES-256-CBC for stored secrets
 │   ├── class-countries.php               # Country/dial-code dataset + picker UI
+│   ├── class-cli-command.php             # WP-CLI: list / reset (emergency recovery)
+│   ├── class-audit-log.php               # Audit log table, queries, pruning
 │   └── providers/
 │       ├── interface-sms-provider.php
 │       ├── class-twilio-provider.php
@@ -84,10 +133,11 @@ Then wire it up in `SMSentry_Plugin::resolve_provider()`.
 
 ## Security notes
 
-- OTPs are hashed with `password_hash()` before being stored in a transient — never logged or stored in plain text
+- OTPs and backup codes are hashed with `password_hash()` before being stored — never logged or stored in plain text
 - API credentials (Twilio Auth Token, Vonage API Secret) are encrypted with AES-256-CBC using a key derived from the site's `AUTH_KEY`
 - OTP entry is rate-limited; a configurable number of failed attempts locks the session for a cooldown period
 - All AJAX endpoints are nonce-protected and capability-checked
+- Audit log entries are never deletable via the WP personal-data eraser, so a malicious actor can't use a data-erasure request to wipe evidence of an attack
 
 ## License
 

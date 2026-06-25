@@ -208,6 +208,35 @@
 		});
 	}
 
+	/* ── Login page: toggle between SMS code and backup code ───── */
+
+	function initBackupCodeToggle() {
+		var $toggle = $('#smsentry-use-backup-toggle');
+		if (!$toggle.length) return;
+
+		var $mode  = $('#smsentry_mode');
+		var $input = $('#smsentry_otp');
+		var $label = $('#smsentry_otp_label');
+
+		$toggle.on('click', function () {
+			var usingBackup = $mode.val() === 'backup';
+
+			if (usingBackup) {
+				$mode.val('otp');
+				$label.text('Verification Code');
+				$input.attr({ maxlength: 6, placeholder: '------', inputmode: 'numeric' });
+				$toggle.text('Use a backup code instead');
+			} else {
+				$mode.val('backup');
+				$label.text('Backup Code');
+				$input.attr({ maxlength: 11, placeholder: 'XXXXX-XXXXX', inputmode: 'text' });
+				$toggle.text('Use SMS code instead');
+			}
+
+			$input.val('').focus();
+		});
+	}
+
 	/* ── Profile page: phone setup AJAX ─────────────────── */
 
 	function initProfileSetup() {
@@ -326,6 +355,95 @@
 				}
 			});
 		});
+
+		// Generate / regenerate backup codes
+		$(document).on('click', '#smsentry-generate-backup-codes', function () {
+			var $btn        = $(this);
+			var isRegen     = $btn.text().trim() === (cfg.i18n.regenerateCodes || 'Regenerate Backup Codes');
+			var confirmMsg  = cfg.i18n.confirmRegen || 'This will invalidate your existing backup codes. Continue?';
+
+			if (isRegen && !window.confirm(confirmMsg)) {
+				return;
+			}
+
+			$btn.prop('disabled', true).text(cfg.i18n.generating || 'Generating...');
+
+			$.post(cfg.ajaxUrl, {
+				action : 'smsentry_generate_backup_codes',
+				nonce  : cfg.nonce
+			})
+			.done(function (response) {
+				if (response.success) {
+					renderBackupCodes(response.data.codes, cfg);
+					$btn.text(cfg.i18n.regenerateCodes || 'Regenerate Backup Codes');
+				} else {
+					showResult($('#smsentry-toggle-result'), response.data.message, true);
+					$btn.text(cfg.i18n.generateCodes || 'Generate Backup Codes');
+				}
+				$btn.prop('disabled', false);
+			})
+			.fail(function () {
+				showResult($('#smsentry-toggle-result'), 'Request failed.', true);
+				$btn.prop('disabled', false).text(cfg.i18n.generateCodes || 'Generate Backup Codes');
+			});
+		});
+
+		// Opt into email-based 2FA (only shown when no phone is verified yet)
+		$(document).on('click', '#smsentry-enable-email-2fa', function () {
+			var $btn    = $(this);
+			var $result = $('#smsentry-email-2fa-result');
+
+			$btn.prop('disabled', true).text(cfg.i18n.enablingEmail || 'Enabling...');
+
+			$.post(cfg.ajaxUrl, {
+				action : 'smsentry_enable_email_2fa',
+				nonce  : cfg.nonce
+			})
+			.done(function (response) {
+				if (response.success) {
+					showResult($result, response.data.message, false);
+					setTimeout(function () { location.reload(); }, 1200);
+				} else {
+					showResult($result, response.data.message, true);
+					$btn.prop('disabled', false).text(cfg.i18n.useEmailInstead || 'Use Email Instead');
+				}
+			})
+			.fail(function () {
+				showResult($result, 'Request failed.', true);
+				$btn.prop('disabled', false).text(cfg.i18n.useEmailInstead || 'Use Email Instead');
+			});
+		});
+	}
+
+	function renderBackupCodes(codes, cfg) {
+		var $box = $('#smsentry-backup-codes-display');
+		var textBlob = codes.join('\n');
+
+		var $container = $('<div class="smsentry-backup-codes-box"></div>');
+		$container.append($('<p class="smsentry-backup-codes-notice"></p>').text(cfg.i18n.saveCodesNotice || 'Save these codes somewhere safe — they will not be shown again.'));
+
+		var $list = $('<ul class="smsentry-backup-codes-list"></ul>');
+		codes.forEach(function (code) {
+			$list.append($('<li></li>').append($('<code></code>').text(code)));
+		});
+		$container.append($list);
+
+		var $actions = $('<div class="smsentry-backup-codes-actions"></div>');
+		var $copyBtn = $('<button type="button" class="button"></button>').text(cfg.i18n.copyCodes || 'Copy Codes');
+		var $downloadLink = $('<a class="button" download="smsentry-backup-codes.txt"></a>')
+			.attr('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(textBlob))
+			.text(cfg.i18n.downloadCodes || 'Download');
+
+		$copyBtn.on('click', function () {
+			navigator.clipboard.writeText(textBlob).then(function () {
+				showResult($('#smsentry-toggle-result'), cfg.i18n.codesCopied || 'Codes copied to clipboard.', false);
+			});
+		});
+
+		$actions.append($copyBtn).append($downloadLink);
+		$container.append($actions);
+
+		$box.empty().append($container).show();
 	}
 
 	/* ── Admin settings: validate + test SMS ────────────── */
@@ -398,6 +516,7 @@
 		initCountryPickers();
 		initResendTimer();
 		initResendButton();
+		initBackupCodeToggle();
 		initProfileSetup();
 		initAdminSettings();
 	});

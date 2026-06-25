@@ -77,6 +77,26 @@
 	font-size: 0.85em;
 }
 
+.smsentry-backup-toggle-row {
+	margin-top: 0.6em;
+	text-align: center;
+	font-size: 0.85em;
+}
+
+#smsentry-use-backup-toggle {
+	color: #2271b1;
+	cursor: pointer;
+	background: none;
+	border: none;
+	padding: 0;
+	font-size: inherit;
+	text-decoration: underline;
+}
+
+#smsentry-use-backup-toggle:hover {
+	color: #135e96;
+}
+
 /* ── Shared result/feedback message ──────────────────────── */
 .smsentry-result {
 	font-size: 0.9em;
@@ -123,6 +143,16 @@
 .smsentry-notice-warning {
 	background: #fff8e5;
 	border-left: 4px solid #dba617;
+}
+
+.smsentry-notice-info {
+	background: #f0f6fc;
+	border-left: 4px solid #72aee6;
+}
+
+.smsentry-notice-info code {
+	background: #fff;
+	padding: 2px 6px;
 }
 
 .smsentry-badge {
@@ -309,4 +339,81 @@
 	text-align: center;
 	color: #787c82;
 	font-size: 13px;
+}
+
+/* ── Backup codes display (profile page) ─────────────────────────────── */
+.smsentry-backup-codes-box {
+	margin-top: 12px;
+	padding: 14px;
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	max-width: 420px;
+}
+
+.smsentry-backup-codes-box .smsentry-backup-codes-notice {
+	font-weight: 600;
+	margin-top: 0;
+}
+
+.smsentry-backup-codes-list {
+	list-style: none;
+	margin: 10px 0;
+	padding: 0;
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 6px 16px;
+}
+
+.smsentry-backup-codes-list code {
+	font-size: 13px;
+	letter-spacing: 0.02em;
+}
+
+.smsentry-backup-codes-actions {
+	margin-top: 10px;
+	display: flex;
+	gap: 8px;
+}
+
+/* ── Email 2FA opt-in divider (profile page) ─────────────────────────── */
+.smsentry-or-divider {
+	margin: 14px 0 8px;
+	color: #787c82;
+	font-size: 0.85em;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+/* ── Audit log tab ────────────────────────────────────────────────────── */
+.smsentry-audit-filters {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 16px 0;
+	flex-wrap: wrap;
+}
+
+.smsentry-audit-filters input[type="text"] {
+	min-width: 260px;
+}
+
+.smsentry-audit-empty {
+	padding: 20px;
+	text-align: center;
+	color: #787c82;
+	background: #f6f7f7;
+	border-radius: 4px;
+}
+
+.smsentry-audit-table td,
+.smsentry-audit-table th {
+	vertical-align: middle;
+}
+
+.smsentry-audit-filters-inner{
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
 }

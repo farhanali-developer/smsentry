@@ -2,10 +2,11 @@
 /**
  * Variables available from SMSentry_Admin::render_settings_page():
  *
- * @var string $active_tab
- * @var string $provider
- * @var array  $required_roles
- * @var array  $all_roles
+ * @var string     $active_tab
+ * @var string     $provider
+ * @var array      $required_roles
+ * @var array      $all_roles
+ * @var array|null $audit_log   Only set when $active_tab === 'audit_log'.
  */
 defined( 'ABSPATH' ) || exit;
 ?>
@@ -26,6 +27,10 @@ defined( 'ABSPATH' ) || exit;
 		<a href="<?php echo esc_url( add_query_arg( 'tab', 'security', admin_url( 'admin.php?page=smsentry' ) ) ); ?>"
 		   class="nav-tab <?php echo 'security' === $active_tab ? 'nav-tab-active' : ''; ?>">
 			<?php esc_html_e( 'Security', 'smsentry' ); ?>
+		</a>
+		<a href="<?php echo esc_url( add_query_arg( 'tab', 'audit_log', admin_url( 'admin.php?page=smsentry' ) ) ); ?>"
+		   class="nav-tab <?php echo 'audit_log' === $active_tab ? 'nav-tab-active' : ''; ?>">
+			<?php esc_html_e( 'Audit Log', 'smsentry' ); ?>
 		</a>
 		<a href="<?php echo esc_url( add_query_arg( 'tab', 'test', admin_url( 'admin.php?page=smsentry' ) ) ); ?>"
 		   class="nav-tab <?php echo 'test' === $active_tab ? 'nav-tab-active' : ''; ?>">
@@ -179,7 +184,36 @@ defined( 'ABSPATH' ) || exit;
 					<p class="description"><?php esc_html_e( 'When unchecked, only admins can control 2FA settings.', 'smsentry' ); ?></p>
 				</td>
 			</tr>
+			<tr>
+				<th scope="row"><?php esc_html_e( 'Email Fallback', 'smsentry' ); ?></th>
+				<td>
+					<label>
+						<input type="checkbox" name="smsentry_email_fallback_enabled" value="1"
+						       <?php checked( get_option( 'smsentry_email_fallback_enabled', true ) ); ?> />
+						<?php esc_html_e( 'Allow email-based 2FA for users without a verified phone number', 'smsentry' ); ?>
+					</label>
+					<p class="description">
+						<?php esc_html_e( 'Covers two cases: users who opt into email codes from their profile, and users under a required role who have not yet verified a phone. Uncheck to require SMS only.', 'smsentry' ); ?>
+					</p>
+				</td>
+			</tr>
 		</table>
+
+		<div class="smsentry-notice smsentry-notice-info">
+			<p><strong><?php esc_html_e( 'Emergency Access', 'smsentry' ); ?></strong></p>
+			<p>
+				<?php esc_html_e( 'If SMS delivery breaks and logins are blocked site-wide, add this to wp-config.php to disable 2FA enforcement immediately:', 'smsentry' ); ?>
+			</p>
+			<p><code>define( 'SMSENTRY_DISABLE_2FA', true );</code></p>
+			<p>
+				<?php esc_html_e( 'To reset 2FA for a single locked-out user via WP-CLI instead:', 'smsentry' ); ?>
+			</p>
+			<p><code>wp smsentry reset &lt;user&gt;</code></p>
+		</div>
+
+		<?php elseif ( 'audit_log' === $active_tab ) : ?>
+
+		<?php require __DIR__ . '/audit-log-tab.php'; ?>
 
 		<?php elseif ( 'test' === $active_tab ) : ?>
 
@@ -216,7 +250,7 @@ defined( 'ABSPATH' ) || exit;
 
 		<?php endif; ?>
 
-		<?php if ( 'test' !== $active_tab ) : ?>
+		<?php if ( ! in_array( $active_tab, array( 'test', 'audit_log' ), true ) ) : ?>
 			<?php submit_button(); ?>
 		<?php endif; ?>
 

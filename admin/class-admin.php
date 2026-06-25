@@ -70,6 +70,9 @@ class SMSentry_Admin {
 		register_setting( 'smsentry_settings', 'smsentry_user_can_disable', array(
 			'sanitize_callback' => 'rest_sanitize_boolean',
 		) );
+		register_setting( 'smsentry_settings', 'smsentry_email_fallback_enabled', array(
+			'sanitize_callback' => 'rest_sanitize_boolean',
+		) );
 	}
 
 	public function sanitize_secret( string $value ): string {
@@ -98,7 +101,42 @@ class SMSentry_Admin {
 		$required_roles = (array) get_option( 'smsentry_required_roles', array() );
 		$all_roles      = wp_roles()->get_names();
 
+		if ( 'audit_log' === $active_tab ) {
+			$audit_log = $this->prepare_audit_log_data();
+		}
+
 		require SMSENTRY_DIR . 'admin/views/settings-page.php';
+	}
+
+	/**
+	 * Build the filtered, paginated audit log dataset consumed by the "Audit Log" tab view.
+	 */
+	private function prepare_audit_log_data(): array {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only filters on an admin listing page, not state-changing form data.
+		$log_user_input = sanitize_text_field( wp_unslash( $_GET['log_user'] ?? '' ) );
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$log_event  = sanitize_key( wp_unslash( $_GET['log_event'] ?? '' ) );
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$paged      = max( 1, absint( wp_unslash( $_GET['paged'] ?? 1 ) ) );
+		$per_page   = 20;
+
+		$log_user_id = 0;
+		if ( '' !== $log_user_input ) {
+			$found = is_numeric( $log_user_input )
+				? get_user_by( 'id', (int) $log_user_input )
+				: ( get_user_by( 'login', $log_user_input ) ?: get_user_by( 'email', $log_user_input ) );
+			$log_user_id = $found ? $found->ID : -1; // -1 guarantees zero results for an unmatched filter instead of silently showing everyone.
+		}
+
+		return array(
+			'entries'      => SMSentry_Audit_Log::get_entries( $per_page, $paged, $log_user_id, $log_event ),
+			'total'        => SMSentry_Audit_Log::count_entries( $log_user_id, $log_event ),
+			'per_page'     => $per_page,
+			'paged'        => $paged,
+			'log_user'     => $log_user_input,
+			'log_event'    => $log_event,
+			'event_labels' => SMSentry_Audit_Log::get_event_labels(),
+		);
 	}
 
 	public function enqueue_scripts( string $hook ): void {

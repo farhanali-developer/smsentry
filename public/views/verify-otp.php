@@ -6,11 +6,13 @@
  *
  * @var string|null $error            Error message to display, or null.
  * @var string      $masked_phone     Masked phone number e.g. ***1234.
+ * @var string      $masked_email     Masked email e.g. jo***@example.com.
  * @var bool        $can_resend       Whether the resend cooldown has expired.
  * @var int         $resend_remaining Seconds until resend is allowed.
  * @var string      $redirect_to      URL to redirect after successful login.
  * @var string      $resend_nonce     Nonce for the resend AJAX call.
  * @var string      $ajax_url         admin-ajax.php URL.
+ * @var bool        $has_backup_codes Whether this user has any unused backup codes.
  */
 defined( 'ABSPATH' ) || exit;
 ?>
@@ -28,7 +30,15 @@ defined( 'ABSPATH' ) || exit;
 	</h1>
 
 	<p class="smsentry-verify-hint">
-		<?php if ( ! empty( $masked_phone ) ) : ?>
+		<?php if ( ! empty( $masked_email ) ) : ?>
+			<?php
+			printf(
+				/* translators: masked email address */
+				esc_html__( 'A 6-digit code was sent to %s. Enter it below to complete sign-in.', 'smsentry' ),
+				'<strong>' . esc_html( $masked_email ) . '</strong>'
+			);
+			?>
+		<?php elseif ( ! empty( $masked_phone ) ) : ?>
 			<?php
 			printf(
 				/* translators: masked phone number */
@@ -37,7 +47,7 @@ defined( 'ABSPATH' ) || exit;
 			);
 			?>
 		<?php else : ?>
-			<?php esc_html_e( 'Enter the 6-digit code sent to your phone.', 'smsentry' ); ?>
+			<?php esc_html_e( 'Enter the 6-digit code that was sent to you.', 'smsentry' ); ?>
 		<?php endif; ?>
 	</p>
 
@@ -47,9 +57,10 @@ defined( 'ABSPATH' ) || exit;
 
 		<?php wp_nonce_field( 'smsentry_verify_otp', 'smsentry_nonce' ); ?>
 		<input type="hidden" name="redirect_to" value="<?php echo esc_attr( $redirect_to ); ?>" />
+		<input type="hidden" name="smsentry_mode" id="smsentry_mode" value="otp" />
 
 		<p>
-			<label for="smsentry_otp">
+			<label for="smsentry_otp" id="smsentry_otp_label">
 				<?php esc_html_e( 'Verification Code', 'smsentry' ); ?>
 			</label>
 			<input type="text"
@@ -80,6 +91,14 @@ defined( 'ABSPATH' ) || exit;
 		</p>
 
 	</form>
+
+	<?php if ( $has_backup_codes ) : ?>
+		<p class="smsentry-backup-toggle-row">
+			<button type="button" id="smsentry-use-backup-toggle" class="button-link">
+				<?php esc_html_e( 'Use a backup code instead', 'smsentry' ); ?>
+			</button>
+		</p>
+	<?php endif; ?>
 
 	<p class="smsentry-resend-row">
 		<?php if ( $can_resend ) : ?>

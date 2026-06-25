@@ -15,6 +15,8 @@ $options = array(
 	'smsentry_lockout_duration',
 	'smsentry_required_roles',
 	'smsentry_user_can_disable',
+	'smsentry_email_fallback_enabled',
+	'smsentry_db_version',
 );
 
 foreach ( $options as $option ) {
@@ -26,6 +28,8 @@ $meta_keys = array(
 	'smsentry_phone',
 	'smsentry_phone_verified',
 	'smsentry_2fa_enabled',
+	'smsentry_backup_codes',
+	'smsentry_email_2fa_enabled',
 );
 
 foreach ( $meta_keys as $key ) {
@@ -39,4 +43,11 @@ global $wpdb;
 $wpdb->query(
 	"DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_smsentry_%' OR option_name LIKE '_transient_timeout_smsentry_%'"
 );
+
+// Drop the audit log table.
+$audit_table = $wpdb->prefix . 'smsentry_audit_log';
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
+$wpdb->query( "DROP TABLE IF EXISTS {$audit_table}" );
+
+wp_clear_scheduled_hook( 'smsentry_prune_audit_log' );
 wp_cache_flush();

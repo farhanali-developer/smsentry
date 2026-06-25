@@ -12,13 +12,14 @@ class SMSentry_Session {
 	private const PREFIX      = 'smsentry_interim_';
 	private const TTL         = 600; // 10 minutes
 
-	public function create( int $user_id ): string {
+	public function create( int $user_id, string $method = 'sms' ): string {
 		$token = bin2hex( random_bytes( 32 ) );
 
 		set_transient(
 			self::PREFIX . $token,
 			array(
 				'user_id'     => $user_id,
+				'method'      => $method,
 				'created_at'  => time(),
 				'redirect_to' => isset( $_REQUEST['redirect_to'] ) ? sanitize_url( wp_unslash( $_REQUEST['redirect_to'] ) ) : '', // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- redirect_to is a standard WP login parameter, not user-submitted form data.
 			),
@@ -49,6 +50,11 @@ class SMSentry_Session {
 	public function get_redirect_to(): string {
 		$data = $this->get_data();
 		return $data ? (string) $data['redirect_to'] : '';
+	}
+
+	public function get_method(): string {
+		$data = $this->get_data();
+		return $data ? (string) ( $data['method'] ?? 'sms' ) : 'sms';
 	}
 
 	public function is_valid(): bool {

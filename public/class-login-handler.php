@@ -39,17 +39,20 @@ class SMSentry_Login_Handler {
 			return $user;
 		}
 
-		if ( ! SMSentry_Plugin::user_needs_2fa( $user->ID ) ) {
+		$method = SMSentry_Plugin::get_2fa_method( $user->ID );
+
+		if ( null === $method ) {
 			return $user;
 		}
 
-		$this->session->create( $user->ID );
+		$this->session->create( $user->ID, $method );
 
-		$result = $this->authenticator->send_otp( $user->ID );
+		$result = $this->authenticator->send_otp( $user->ID, $method );
 
 		if ( is_wp_error( $result ) ) {
 			$this->session->destroy();
-			// Allow site owners to hook in and handle the failure (e.g. log it).
+			SMSentry_Audit_Log::log( $user->ID, 'otp_send_failed', $method . ': ' . $result->get_error_message() );
+			// Allow site owners to hook in and handle the failure (e.g. their own logging/alerting).
 			do_action( 'smsentry_otp_send_failed', $user->ID, $result );
 
 			return new WP_Error(
@@ -113,18 +116,24 @@ class SMSentry_Login_Handler {
 
 		if ( $this->rate_limiter->is_locked_out( $user_id ) ) {
 			$this->session->destroy();
+			SMSentry_Audit_Log::log( $user_id, 'lockout' );
 			wp_safe_redirect( add_query_arg( 'smsentry_error', 'locked', wp_login_url() ) );
 			exit;
 		}
 
-		$otp    = sanitize_text_field( wp_unslash( $_POST['smsentry_otp'] ?? '' ) );
-		$result = $this->authenticator->verify_otp( $user_id, $otp );
+		$mode   = sanitize_text_field( wp_unslash( $_POST['smsentry_mode'] ?? 'otp' ) );
+		$code   = sanitize_text_field( wp_unslash( $_POST['smsentry_otp'] ?? '' ) );
+		$result = ( 'backup' === $mode )
+			? $this->authenticator->verify_backup_code( $user_id, $code )
+			: $this->authenticator->verify_otp( $user_id, $code );
 
 		if ( is_wp_error( $result ) ) {
 			$this->rate_limiter->record_attempt( $user_id );
+			SMSentry_Audit_Log::log( $user_id, 'login_failed', $result->get_error_message() );
 
 			if ( $this->rate_limiter->is_locked_out( $user_id ) ) {
 				$this->session->destroy();
+				SMSentry_Audit_Log::log( $user_id, 'lockout' );
 				wp_safe_redirect( add_query_arg( 'smsentry_error', 'locked', wp_login_url() ) );
 				exit;
 			}
@@ -134,6 +143,12 @@ class SMSentry_Login_Handler {
 		}
 
 		// Verification passed.
+		$channel = ( 'backup' === $mode ) ? 'backup code' : $this->session->get_method();
+		SMSentry_Audit_Log::log( $user_id, 'login_success', 'via ' . $channel );
+		if ( 'backup' === $mode ) {
+			SMSentry_Audit_Log::log( $user_id, 'backup_code_used' );
+		}
+
 		$this->rate_limiter->reset( $user_id );
 		$redirect_to = $this->session->get_redirect_to();
 		$this->session->destroy();
@@ -156,10 +171,17 @@ class SMSentry_Login_Handler {
 			exit;
 		}
 
-		$user_id = $this->session->get_user_id();
+		$user_id      = $this->session->get_user_id();
+		$method       = $this->session->get_method();
 		$masked_phone = '';
+		$masked_email = '';
 
-		if ( $user_id ) {
+		if ( $user_id && 'email' === $method ) {
+			$user = get_userdata( $user_id );
+			if ( $user ) {
+				$masked_email = $this->mask_email( $user->user_email );
+			}
+		} elseif ( $user_id ) {
 			$raw = (string) get_user_meta( $user_id, 'smsentry_phone', true );
 			if ( strlen( $raw ) >= 4 ) {
 				$masked_phone = str_repeat( '*', max( 0, strlen( $raw ) - 4 ) ) . substr( $raw, -4 );
@@ -168,14 +190,15 @@ class SMSentry_Login_Handler {
 
 		$can_resend       = $user_id ? $this->rate_limiter->can_resend( $user_id ) : true;
 		$resend_remaining = $user_id ? $this->rate_limiter->get_resend_remaining( $user_id ) : 0;
+		$has_backup_codes = $user_id ? $this->authenticator->get_backup_codes_remaining( $user_id ) > 0 : false;
 		$redirect_to      = $this->session->get_redirect_to();
 		$resend_nonce     = wp_create_nonce( 'smsentry_resend' );
 		$ajax_url         = admin_url( 'admin-ajax.php' );
 
-		// Enqueue our CSS inside the WP login page.
+		// Enqueue our CSS/JS inside the WP login page (jQuery isn't loaded here by default).
 		add_action( 'login_enqueue_scripts', function () {
 			wp_enqueue_style( 'smsentry-login', SMSENTRY_URL . 'assets/css/smsentry.css', array(), SMSENTRY_VERSION );
-			wp_enqueue_script( 'smsentry-login', SMSENTRY_URL . 'assets/js/smsentry.js', array(), SMSENTRY_VERSION, true );
+			wp_enqueue_script( 'smsentry-login', SMSENTRY_URL . 'assets/js/smsentry.js', array( 'jquery' ), SMSENTRY_VERSION, true );
 		} );
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- login_header is a WP core function
@@ -207,7 +230,7 @@ class SMSentry_Login_Handler {
 			) );
 		}
 
-		$result = $this->authenticator->send_otp( $user_id );
+		$result = $this->authenticator->send_otp( $user_id, $this->session->get_method() );
 
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
@@ -215,9 +238,23 @@ class SMSentry_Login_Handler {
 
 		$this->rate_limiter->set_resend_cooldown( $user_id );
 
+		$message = ( 'email' === $this->session->get_method() )
+			? __( 'A new code has been sent to your email.', 'smsentry' )
+			: __( 'A new code has been sent to your phone.', 'smsentry' );
+
 		wp_send_json_success( array(
-			'message'   => __( 'A new code has been sent to your phone.', 'smsentry' ),
+			'message'   => $message,
 			'remaining' => 60,
 		) );
+	}
+
+	private function mask_email( string $email ): string {
+		$at = strpos( $email, '@' );
+
+		if ( false === $at || $at < 2 ) {
+			return $email;
+		}
+
+		return substr( $email, 0, 2 ) . str_repeat( '*', $at - 2 ) . substr( $email, $at );
 	}
 }
