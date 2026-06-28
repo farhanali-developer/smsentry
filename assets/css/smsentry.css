@@ -127,6 +127,49 @@
 	margin-top: 20px;
 }
 
+/* ── Guided setup help disclosures ───────────────────────── */
+.smsentry-help-disclosure {
+	margin: 12px 0 16px;
+	padding: 10px 16px;
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+}
+
+.smsentry-help-disclosure summary {
+	cursor: pointer;
+	font-weight: 600;
+	color: #2271b1;
+	padding: 4px 0;
+}
+
+.smsentry-help-disclosure summary:hover {
+	color: #135e96;
+}
+
+.smsentry-help-disclosure[open] summary {
+	margin-bottom: 8px;
+}
+
+.smsentry-help-disclosure ol {
+	margin: 0 0 10px 20px;
+}
+
+.smsentry-help-disclosure li {
+	margin-bottom: 8px;
+	line-height: 1.5;
+}
+
+.smsentry-help-tip {
+	margin: 10px 0 0;
+	padding: 8px 12px;
+	background: #fff8e5;
+	border-left: 3px solid #dba617;
+	border-radius: 2px;
+	font-size: 0.92em;
+	line-height: 1.5;
+}
+
 /* ── User profile section ────────────────────────────────── */
 .smsentry-profile-section {
 	margin-top: 2em;

@@ -99,9 +99,50 @@ defined( 'ABSPATH' ) || exit;
 		<!-- Twilio credentials -->
 		<div class="smsentry-provider-section" data-provider="twilio" <?php echo 'twilio' !== $provider ? 'style="display:none"' : ''; ?>>
 			<h2><?php esc_html_e( 'Twilio Credentials', 'smsentry' ); ?></h2>
-			<p class="description">
-				<?php esc_html_e( 'Find these in your Twilio Console dashboard.', 'smsentry' ); ?>
-			</p>
+
+			<details class="smsentry-help-disclosure">
+				<summary><?php esc_html_e( 'New to Twilio? Click here for step-by-step setup help', 'smsentry' ); ?></summary>
+				<ol>
+					<li>
+						<?php
+						printf(
+							/* translators: %s: "Sign up free at Twilio" link */
+							esc_html__( "Don't have an account yet? %s — no credit card required for the trial.", 'smsentry' ),
+							'<a href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Sign up free at twilio.com', 'smsentry' ) . '</a>'
+						);
+						?>
+					</li>
+					<li>
+						<?php
+						printf(
+							/* translators: %s: "Twilio Console" link */
+							esc_html__( 'Log in to the %s. Your Account SID and Auth Token are shown right on the dashboard home page, under "Account Info."', 'smsentry' ),
+							'<a href="https://console.twilio.com" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Twilio Console', 'smsentry' ) . '</a>'
+						);
+						?>
+					</li>
+					<li>
+						<?php
+						printf(
+							/* translators: %s: "Phone Numbers" link */
+							esc_html__( 'Get a phone number under %s if you don\'t already have one, then enter it below in E.164 format (e.g. +14155551234).', 'smsentry' ),
+							'<a href="https://console.twilio.com/us1/develop/phone-numbers/manage/incoming" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Phone Numbers → Manage → Active Numbers', 'smsentry' ) . '</a>'
+						);
+						?>
+					</li>
+				</ol>
+				<p class="smsentry-help-tip">
+					<?php
+					printf(
+						/* translators: %s: "Verified Caller IDs" link */
+						esc_html__( '%1$s Trial accounts can only send SMS to numbers you\'ve manually verified. Add your own phone under %2$s before testing, or the test message will come back with an error.', 'smsentry' ),
+						'<strong>' . esc_html__( 'Trial account?', 'smsentry' ) . '</strong>',
+						'<a href="https://console.twilio.com/us1/develop/phone-numbers/manage/verified" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Phone Numbers → Verified Caller IDs', 'smsentry' ) . '</a>'
+					);
+					?>
+				</p>
+			</details>
+
 			<table class="form-table" role="presentation">
 				<tr>
 					<th scope="row"><label for="smsentry_twilio_sid"><?php esc_html_e( 'Account SID', 'smsentry' ); ?></label></th>
@@ -135,9 +176,40 @@ defined( 'ABSPATH' ) || exit;
 		<!-- Vonage credentials -->
 		<div class="smsentry-provider-section" data-provider="vonage" <?php echo 'vonage' !== $provider ? 'style="display:none"' : ''; ?>>
 			<h2><?php esc_html_e( 'Vonage Credentials', 'smsentry' ); ?></h2>
-			<p class="description">
-				<?php esc_html_e( 'Find these in your Vonage API Dashboard.', 'smsentry' ); ?>
-			</p>
+
+			<details class="smsentry-help-disclosure">
+				<summary><?php esc_html_e( 'New to Vonage? Click here for step-by-step setup help', 'smsentry' ); ?></summary>
+				<ol>
+					<li>
+						<?php
+						printf(
+							/* translators: %s: "Sign up free at Vonage" link */
+							esc_html__( "Don't have an account yet? %s — trial accounts get free credit to start with.", 'smsentry' ),
+							'<a href="https://dashboard.nexmo.com/sign-up" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Sign up free at vonage.com', 'smsentry' ) . '</a>'
+						);
+						?>
+					</li>
+					<li>
+						<?php
+						printf(
+							/* translators: %s: "Vonage API Dashboard" link */
+							esc_html__( 'Log in to the %s. Your API Key and API Secret are shown right on the dashboard home page.', 'smsentry' ),
+							'<a href="https://dashboard.nexmo.com" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Vonage API Dashboard', 'smsentry' ) . '</a>'
+						);
+						?>
+					</li>
+					<li>
+						<?php
+						printf(
+							/* translators: %s: "sender ID rules by country" link */
+							esc_html__( 'The "From" field can be a purchased Vonage number, or in many countries an alphanumeric name like your site name — check %s, since some countries (like the US) require a real number instead.', 'smsentry' ),
+							'<a href="https://api.support.vonage.com/hc/en-us/articles/115011781468" target="_blank" rel="noopener noreferrer">' . esc_html__( 'sender ID rules by country', 'smsentry' ) . '</a>'
+						);
+						?>
+					</li>
+				</ol>
+			</details>
+
 			<table class="form-table" role="presentation">
 				<tr>
 					<th scope="row"><label for="smsentry_vonage_key"><?php esc_html_e( 'API Key', 'smsentry' ); ?></label></th>
@@ -322,6 +394,22 @@ defined( 'ABSPATH' ) || exit;
 
 		<h2><?php esc_html_e( 'Send a Test SMS', 'smsentry' ); ?></h2>
 		<p><?php esc_html_e( 'Send a real SMS to confirm delivery is working end-to-end.', 'smsentry' ); ?></p>
+
+		<?php if ( 'twilio' === $provider ) : ?>
+			<div class="smsentry-notice smsentry-notice-info">
+				<p>
+					<?php
+					printf(
+						/* translators: %s: "Verified Caller IDs" link */
+						esc_html__( '%1$s If you\'re on a Twilio trial account, the test number must be added under %2$s first, or you\'ll get an error instead of a message.', 'smsentry' ),
+						'<strong>' . esc_html__( 'Using a trial account?', 'smsentry' ) . '</strong>',
+						'<a href="https://console.twilio.com/us1/develop/phone-numbers/manage/verified" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Phone Numbers → Verified Caller IDs', 'smsentry' ) . '</a>'
+					);
+					?>
+				</p>
+			</div>
+		<?php endif; ?>
+
 		<table class="form-table" role="presentation">
 			<tr>
 				<th scope="row"><label for="smsentry-test-phone"><?php esc_html_e( 'Phone Number', 'smsentry' ); ?></label></th>

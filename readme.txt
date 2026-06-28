@@ -4,7 +4,7 @@ Tags:              two-factor authentication, 2fa, sms, twilio, vonage
 Requires at least: 6.0
 Tested up to:      7.0
 Requires PHP:      8.0
-Stable tag:        1.3.0
+Stable tag:        1.3.1
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -127,6 +127,12 @@ Not if you check "Trust this device for 30 days" on the verification screen — 
 8. The 2FA adoption widget on the Security tab.
 
 == Changelog ==
+
+= 1.3.1 =
+* Added step-by-step, provider-specific setup guidance directly on the Provider tab (collapsible, with direct links to the right Twilio/Vonage console pages).
+* Added a heads-up on the Test & Validate tab about Twilio trial accounts rejecting unverified numbers, with a direct link to add one.
+* Fixed: Twilio Auth Token / Vonage API Secret were not persisting correctly (settings-group and sanitize-callback bugs) and the saved-secret indicator used a placeholder instead of a real masked value.
+* Fixed: the profile phone field now shows an explicit notice if saved via "Update Profile" instead of "Send Verification Code" (which is the button that actually saves it).
 
 = 1.3.0 =
 * Added a 2FA status column and per-user "Enforce 2FA" bulk action to the Users list.
