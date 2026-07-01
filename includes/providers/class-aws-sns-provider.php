@@ -81,19 +81,20 @@ class SMSentry_AWS_SNS_Provider implements SMSentry_SMS_Provider {
 		$params['Version'] = '2010-03-31';
 		ksort( $params );
 
-		$endpoint     = 'https://sns.' . $this->region . '.amazonaws.com/';
-		$service      = 'sns';
-		$host         = 'sns.' . $this->region . '.amazonaws.com';
-		$content_type = 'application/x-www-form-urlencoded; charset=UTF-8';
-		$amz_date     = gmdate( 'Ymd\THis\Z' );
-		$date_stamp   = gmdate( 'Ymd' );
+		$endpoint   = 'https://sns.' . $this->region . '.amazonaws.com/';
+		$service    = 'sns';
+		$host       = 'sns.' . $this->region . '.amazonaws.com';
+		$amz_date   = gmdate( 'Ymd\THis\Z' );
+		$date_stamp = gmdate( 'Ymd' );
 
 		$body = http_build_query( $params );
 
 		// ── Step 1: Canonical request ─────────────────────────────────────
-		// Headers must be lowercase and alphabetically sorted.
-		$canonical_headers = "content-type:{$content_type}\nhost:{$host}\nx-amz-date:{$amz_date}\n";
-		$signed_headers    = 'content-type;host;x-amz-date';
+		// Sign only host and x-amz-date — the minimum AWS requires.
+		// Not signing Content-Type avoids signature mismatches caused by
+		// WordPress's HTTP layer normalising the header value in transit.
+		$canonical_headers = "host:{$host}\nx-amz-date:{$amz_date}\n";
+		$signed_headers    = 'host;x-amz-date';
 		$payload_hash      = hash( 'sha256', $body );
 
 		$canonical_request = implode( "\n", array(
@@ -134,8 +135,8 @@ class SMSentry_AWS_SNS_Provider implements SMSentry_SMS_Provider {
 
 		$response = wp_remote_post( $endpoint, array(
 			'headers' => array(
-				'Content-Type' => $content_type,
-				'X-Amz-Date'  => $amz_date,
+				'Content-Type'  => 'application/x-www-form-urlencoded',
+				'X-Amz-Date'    => $amz_date,
 				'Authorization' => $authorization,
 			),
 			'body'    => $body,
