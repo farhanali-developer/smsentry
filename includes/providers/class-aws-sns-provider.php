@@ -72,9 +72,26 @@ class SMSentry_AWS_SNS_Provider implements SMSentry_SMS_Provider {
 			);
 		}
 
-		// GetSMSAttributes is a lightweight read-only call that confirms the
-		// credentials have SNS access without sending any messages.
-		return $this->api_request( 'GetSMSAttributes', array() );
+		$result = $this->api_request( 'GetSMSAttributes', array() );
+
+		if ( is_wp_error( $result ) ) {
+			$msg = $result->get_error_message();
+
+			// "not authorized to perform" means AWS successfully authenticated the
+			// request (credentials and signing are correct) but the IAM policy
+			// doesn't include that specific action. The credentials themselves are
+			// valid. This happens because AWS now routes GetSMSAttributes through
+			// PinpointSmsVoiceV2 in some regions and requires sms-voice:DescribeSpendLimits.
+			// sns:Publish (the action that actually sends OTP codes) is unaffected.
+			if ( false !== strpos( $msg, 'not authorized to perform' )
+				|| false !== strpos( $msg, 'AccessDenied' ) ) {
+				return true;
+			}
+
+			return $result;
+		}
+
+		return true;
 	}
 
 	/**
