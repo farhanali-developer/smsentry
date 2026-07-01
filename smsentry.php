@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       SMSentry
  * Plugin URI:        https://wordpress.org/plugins/smsentry/
- * Description:       Two-factor authentication for WordPress via SMS. Supports Twilio and Vonage with a swappable provider interface.
- * Version:           1.3.1
+ * Description:       Two-factor authentication for WordPress via SMS. Supports Twilio, Vonage, and AWS SNS with a swappable provider interface.
+ * Version:           1.4.0
  * Author:            SMSentry
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'SMSENTRY_VERSION', '1.3.1' );
+define( 'SMSENTRY_VERSION', '1.4.0' );
 define( 'SMSENTRY_DB_VERSION', '1.1' );
 define( 'SMSENTRY_FILE', __FILE__ );
 define( 'SMSENTRY_DIR', plugin_dir_path( __FILE__ ) );
@@ -30,6 +30,7 @@ require_once SMSENTRY_DIR . 'includes/class-device-trust.php';
 require_once SMSENTRY_DIR . 'includes/providers/interface-sms-provider.php';
 require_once SMSENTRY_DIR . 'includes/providers/class-twilio-provider.php';
 require_once SMSENTRY_DIR . 'includes/providers/class-vonage-provider.php';
+require_once SMSENTRY_DIR . 'includes/providers/class-aws-sns-provider.php';
 require_once SMSENTRY_DIR . 'includes/class-rate-limiter.php';
 require_once SMSENTRY_DIR . 'includes/class-session.php';
 require_once SMSENTRY_DIR . 'includes/class-authenticator.php';

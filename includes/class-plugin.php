@@ -81,6 +81,12 @@ class SMSentry_Plugin {
 				SMSentry_Crypto::decrypt( (string) get_option( 'smsentry_vonage_secret', '' ) ),
 				(string) get_option( 'smsentry_vonage_from', '' )
 			),
+			'aws_sns' => new SMSentry_AWS_SNS_Provider(
+				(string) get_option( 'smsentry_aws_access_key', '' ),
+				SMSentry_Crypto::decrypt( (string) get_option( 'smsentry_aws_secret_key', '' ) ),
+				(string) get_option( 'smsentry_aws_region', 'us-east-1' ),
+				(string) get_option( 'smsentry_aws_sender_id', '' )
+			),
 			default => new SMSentry_Twilio_Provider(
 				(string) get_option( 'smsentry_twilio_sid', '' ),
 				SMSentry_Crypto::decrypt( (string) get_option( 'smsentry_twilio_token', '' ) ),

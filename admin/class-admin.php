@@ -51,11 +51,14 @@ class SMSentry_Admin {
 	 */
 	public function register_settings(): void {
 		$provider_fields = array(
-			'smsentry_provider'    => 'sanitize_text_field',
-			'smsentry_twilio_sid'  => 'sanitize_text_field',
-			'smsentry_twilio_from' => 'sanitize_text_field',
-			'smsentry_vonage_key'  => 'sanitize_text_field',
-			'smsentry_vonage_from' => 'sanitize_text_field',
+			'smsentry_provider'      => 'sanitize_text_field',
+			'smsentry_twilio_sid'    => 'sanitize_text_field',
+			'smsentry_twilio_from'   => 'sanitize_text_field',
+			'smsentry_vonage_key'    => 'sanitize_text_field',
+			'smsentry_vonage_from'   => 'sanitize_text_field',
+			'smsentry_aws_access_key' => 'sanitize_text_field',
+			'smsentry_aws_region'    => 'sanitize_text_field',
+			'smsentry_aws_sender_id' => 'sanitize_text_field',
 		);
 
 		foreach ( $provider_fields as $option => $callback ) {
@@ -69,6 +72,9 @@ class SMSentry_Admin {
 		) );
 		register_setting( 'smsentry_provider_settings', 'smsentry_vonage_secret', array(
 			'sanitize_callback' => array( $this, 'sanitize_vonage_secret' ),
+		) );
+		register_setting( 'smsentry_provider_settings', 'smsentry_aws_secret_key', array(
+			'sanitize_callback' => array( $this, 'sanitize_aws_secret_key' ),
 		) );
 
 		$security_fields = array(
@@ -101,6 +107,13 @@ class SMSentry_Admin {
 	public function sanitize_vonage_secret( string $value ): string {
 		if ( empty( $value ) || '••••••••' === $value ) {
 			return (string) get_option( 'smsentry_vonage_secret', '' );
+		}
+		return SMSentry_Crypto::encrypt( sanitize_text_field( $value ) );
+	}
+
+	public function sanitize_aws_secret_key( string $value ): string {
+		if ( empty( $value ) || '••••••••' === $value ) {
+			return (string) get_option( 'smsentry_aws_secret_key', '' );
 		}
 		return SMSentry_Crypto::encrypt( sanitize_text_field( $value ) );
 	}

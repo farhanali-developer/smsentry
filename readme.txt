@@ -4,7 +4,7 @@ Tags:              two-factor authentication, 2fa, sms, twilio, vonage
 Requires at least: 6.0
 Tested up to:      7.0
 Requires PHP:      8.0
-Stable tag:        1.3.1
+Stable tag:        1.4.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,7 @@ SMSentry adds a second layer of protection to your WordPress site by requiring u
 |----------|-------|
 | Twilio   | Recommended — most reliable global delivery |
 | Vonage   | Good alternative with free trial credit |
+| AWS SNS  | Free tier (100 SMS/month, first 12 months), lowest per-SMS cost — uses AWS Signature V4 signing, no SDK required |
 
 == Installation ==
 
@@ -127,6 +128,11 @@ Not if you check "Trust this device for 30 days" on the verification screen — 
 8. The 2FA adoption widget on the Security tab.
 
 == Changelog ==
+
+= 1.4.0 =
+* Added AWS SNS as a third SMS provider option — cheaper than Twilio/Vonage, free tier includes 100 SMS/month for 12 months. Uses AWS Signature Version 4 signed requests; no PHP SDK required.
+* Step-by-step AWS SNS setup guide built into the Provider tab, including IAM user setup, spending limit info, and Sender ID instructions.
+* Contextual notice on Test & Validate tab for new AWS accounts about the default $1/month spending limit.
 
 = 1.3.1 =
 * Added step-by-step, provider-specific setup guidance directly on the Provider tab (collapsible, with direct links to the right Twilio/Vonage console pages).

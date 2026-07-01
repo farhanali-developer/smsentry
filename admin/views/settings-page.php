@@ -89,8 +89,9 @@ defined( 'ABSPATH' ) || exit;
 				<th scope="row"><?php esc_html_e( 'SMS Provider', 'smsentry' ); ?></th>
 				<td>
 					<select name="smsentry_provider" id="smsentry_provider" class="smsentry-provider-select">
-						<option value="twilio" <?php selected( $provider, 'twilio' ); ?>>Twilio</option>
-						<option value="vonage" <?php selected( $provider, 'vonage' ); ?>>Vonage</option>
+						<option value="twilio"  <?php selected( $provider, 'twilio' ); ?>>Twilio</option>
+						<option value="vonage"  <?php selected( $provider, 'vonage' ); ?>>Vonage</option>
+						<option value="aws_sns" <?php selected( $provider, 'aws_sns' ); ?>>AWS SNS</option>
 					</select>
 				</td>
 			</tr>
@@ -235,6 +236,110 @@ defined( 'ABSPATH' ) || exit;
 						       value="<?php echo esc_attr( get_option( 'smsentry_vonage_from', '' ) ); ?>"
 						       class="regular-text" placeholder="MySite" />
 						<p class="description"><?php esc_html_e( 'Alphanumeric sender ID or a phone number.', 'smsentry' ); ?></p>
+					</td>
+				</tr>
+			</table>
+		</div>
+
+		<!-- AWS SNS credentials -->
+		<div class="smsentry-provider-section" data-provider="aws_sns" <?php echo 'aws_sns' !== $provider ? 'style="display:none"' : ''; ?>>
+			<h2><?php esc_html_e( 'AWS SNS Credentials', 'smsentry' ); ?></h2>
+
+			<details class="smsentry-help-disclosure">
+				<summary><?php esc_html_e( 'New to AWS SNS? Click here for step-by-step setup help', 'smsentry' ); ?></summary>
+				<ol>
+					<li>
+						<?php
+						printf(
+							/* translators: %s: "Sign up for a free AWS account" link */
+							esc_html__( "Don't have an AWS account? %s — the free tier includes 100 SMS/month for your first 12 months.", 'smsentry' ),
+							'<a href="https://aws.amazon.com/free/" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Sign up for a free AWS account', 'smsentry' ) . '</a>'
+						);
+						?>
+					</li>
+					<li>
+						<?php
+						printf(
+							/* translators: %s: "IAM Console" link */
+							esc_html__( 'In the %s, create a new IAM user (e.g. "smsentry") and attach a policy that allows %s and %s on Resource: *.', 'smsentry' ),
+							'<a href="https://console.aws.amazon.com/iam/home#/users" target="_blank" rel="noopener noreferrer">' . esc_html__( 'IAM Console', 'smsentry' ) . '</a>',
+							'<code>sns:Publish</code>',
+							'<code>sns:GetSMSAttributes</code>'
+						);
+						?>
+					</li>
+					<li><?php esc_html_e( 'Under that IAM user\'s "Security credentials" tab, create an Access Key. Copy the Access Key ID and Secret Access Key — the secret is shown only once.', 'smsentry' ); ?></li>
+					<li>
+						<?php
+						printf(
+							/* translators: %s: "SNS SMS spending limit" link */
+							esc_html__( 'New AWS accounts have a $1/month SMS spending limit by default. To lift it, open a %s via the SNS console before going live.', 'smsentry' ),
+							'<a href="https://console.aws.amazon.com/support/home#/case/create" target="_blank" rel="noopener noreferrer">' . esc_html__( 'spending limit increase request', 'smsentry' ) . '</a>'
+						);
+						?>
+					</li>
+				</ol>
+				<p class="smsentry-help-tip">
+					<?php esc_html_e( 'Choose the AWS region closest to your users — this minimises latency for OTP delivery. Any region listed below supports SNS SMS sending.', 'smsentry' ); ?>
+				</p>
+			</details>
+
+			<table class="form-table" role="presentation">
+				<tr>
+					<th scope="row"><label for="smsentry_aws_access_key"><?php esc_html_e( 'Access Key ID', 'smsentry' ); ?></label></th>
+					<td>
+						<input type="text" id="smsentry_aws_access_key" name="smsentry_aws_access_key"
+						       value="<?php echo esc_attr( get_option( 'smsentry_aws_access_key', '' ) ); ?>"
+						       class="regular-text" autocomplete="off" placeholder="AKIAIOSFODNN7EXAMPLE" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="smsentry_aws_secret_key"><?php esc_html_e( 'Secret Access Key', 'smsentry' ); ?></label></th>
+					<td>
+						<input type="password" id="smsentry_aws_secret_key" name="smsentry_aws_secret_key"
+						       value="<?php echo get_option( 'smsentry_aws_secret_key' ) ? esc_attr( '••••••••' ) : ''; ?>"
+						       class="regular-text" autocomplete="off" />
+						<p class="description"><?php esc_html_e( 'Shows •••••••• when a key is already saved. Clear it and type a new one to replace it, or leave as-is to keep the current key.', 'smsentry' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="smsentry_aws_region"><?php esc_html_e( 'AWS Region', 'smsentry' ); ?></label></th>
+					<td>
+						<select id="smsentry_aws_region" name="smsentry_aws_region">
+							<?php
+							$aws_regions = array(
+								'us-east-1'      => 'US East (N. Virginia)',
+								'us-east-2'      => 'US East (Ohio)',
+								'us-west-2'      => 'US West (Oregon)',
+								'ca-central-1'   => 'Canada (Central)',
+								'eu-west-1'      => 'EU (Ireland)',
+								'eu-west-2'      => 'EU (London)',
+								'eu-central-1'   => 'EU (Frankfurt)',
+								'ap-south-1'     => 'Asia Pacific (Mumbai)',
+								'ap-southeast-1' => 'Asia Pacific (Singapore)',
+								'ap-southeast-2' => 'Asia Pacific (Sydney)',
+								'ap-northeast-1' => 'Asia Pacific (Tokyo)',
+								'sa-east-1'      => 'South America (São Paulo)',
+							);
+							$saved_region = get_option( 'smsentry_aws_region', 'us-east-1' );
+							foreach ( $aws_regions as $value => $label ) :
+								?>
+								<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $saved_region, $value ); ?>>
+									<?php echo esc_html( $label . ' (' . $value . ')' ); ?>
+								</option>
+							<?php endforeach; ?>
+						</select>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="smsentry_aws_sender_id"><?php esc_html_e( 'Sender ID', 'smsentry' ); ?></label></th>
+					<td>
+						<input type="text" id="smsentry_aws_sender_id" name="smsentry_aws_sender_id"
+						       value="<?php echo esc_attr( get_option( 'smsentry_aws_sender_id', '' ) ); ?>"
+						       class="regular-text" placeholder="MySite" maxlength="11" />
+						<p class="description">
+							<?php esc_html_e( 'Optional. An alphanumeric name shown as the sender (max 11 characters). Not supported in all countries — leave blank to use a shared number pool instead.', 'smsentry' ); ?>
+						</p>
 					</td>
 				</tr>
 			</table>
@@ -404,6 +509,21 @@ defined( 'ABSPATH' ) || exit;
 						esc_html__( '%1$s If you\'re on a Twilio trial account, the test number must be added under %2$s first, or you\'ll get an error instead of a message.', 'smsentry' ),
 						'<strong>' . esc_html__( 'Using a trial account?', 'smsentry' ) . '</strong>',
 						'<a href="https://console.twilio.com/us1/develop/phone-numbers/manage/verified" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Phone Numbers → Verified Caller IDs', 'smsentry' ) . '</a>'
+					);
+					?>
+				</p>
+			</div>
+		<?php endif; ?>
+
+		<?php if ( 'aws_sns' === $provider ) : ?>
+			<div class="smsentry-notice smsentry-notice-info">
+				<p>
+					<?php
+					printf(
+						/* translators: %s: "spending limit increase request" link */
+						esc_html__( '%1$s New AWS accounts have a $1/month SMS spending limit. If your test message fails with a spending limit error, submit a %2$s in the AWS Support Console — it is typically approved within minutes.', 'smsentry' ),
+						'<strong>' . esc_html__( 'New account?', 'smsentry' ) . '</strong>',
+						'<a href="https://console.aws.amazon.com/support/home#/case/create" target="_blank" rel="noopener noreferrer">' . esc_html__( 'spending limit increase request', 'smsentry' ) . '</a>'
 					);
 					?>
 				</p>
