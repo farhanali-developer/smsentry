@@ -20,17 +20,15 @@ class SMSentry_Stats {
 		$user_counts = count_users();
 		$total       = (int) $user_counts['total_users'];
 
-		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Admin-only adoption summary, transient-cached for 5 minutes. meta_key is the only practical way to query 2FA enrollment.
 		$sms_ids   = get_users( array(
-			'meta_key'     => 'smsentry_phone_verified',
-			'meta_value'   => '1',
+			'meta_key'     => 'smsentry_phone_verified', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Admin-only, transient-cached 5 min; meta_key is the only way to query 2FA enrollment.
+			'meta_value'   => '1', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 			'meta_compare' => '=',
 			'fields'       => 'ID',
 		) );
-		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 		$email_ids = get_users( array(
-			'meta_key'     => 'smsentry_email_2fa_enabled',
-			'meta_value'   => '1',
+			'meta_key'     => 'smsentry_email_2fa_enabled', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+			'meta_value'   => '1', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 			'meta_compare' => '=',
 			'fields'       => 'ID',
 		) );
@@ -44,10 +42,9 @@ class SMSentry_Stats {
 		}
 
 		// Individually-enforced users (Users list bulk action) count as required too, even outside a required role.
-		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 		$forced_ids = get_users( array(
-			'meta_key'     => 'smsentry_force_required',
-			'meta_value'   => '1',
+			'meta_key'     => 'smsentry_force_required', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+			'meta_value'   => '1', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 			'meta_compare' => '=',
 			'fields'       => 'ID',
 		) );

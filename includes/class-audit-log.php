@@ -75,7 +75,7 @@ class SMSentry_Audit_Log {
 		$params[]               = $per_page;
 		$params[]               = $offset;
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- $table is the internal prefixed name; $where_sql is built only from fixed fragments in build_where() with all user values bound as %d/%s via $params. Audit log must reflect real-time data; caching would show stale security events.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- $table is the internal prefixed name; $where_sql is built only from fixed fragments in build_where() with all user values bound as %d/%s via $params. ReplacementsWrongNumber fires because the sniffer can't count placeholders inside $where_sql. Audit log must reflect real-time data.
 		return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE {$where_sql} ORDER BY created_at DESC LIMIT %d OFFSET %d", $params ), ARRAY_A );
 	}
 
