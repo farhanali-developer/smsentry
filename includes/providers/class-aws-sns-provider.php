@@ -42,18 +42,18 @@ class SMSentry_AWS_SNS_Provider implements SMSentry_SMS_Provider {
 		}
 
 		$params = array(
-			'PhoneNumber' => $to,
 			'Message'     => $message,
+			'PhoneNumber' => $to,
 			// Transactional = higher priority, better for time-sensitive OTP codes.
-			'MessageAttributes.entry.1.Name'                   => 'AWS.SNS.SMS.SMSType',
-			'MessageAttributes.entry.1.Value.DataType'         => 'String',
-			'MessageAttributes.entry.1.Value.StringValue'      => 'Transactional',
+			'MessageAttributes.entry.1.Name'              => 'AWS.SNS.SMS.SMSType',
+			'MessageAttributes.entry.1.Value.DataType'    => 'String',
+			'MessageAttributes.entry.1.Value.StringValue' => 'Transactional',
 		);
 
 		if ( ! empty( $this->sender_id ) ) {
-			$params['MessageAttributes.entry.2.Name']               = 'AWS.SNS.SMS.SenderID';
-			$params['MessageAttributes.entry.2.Value.DataType']     = 'String';
-			$params['MessageAttributes.entry.2.Value.StringValue']  = $this->sender_id;
+			$params['MessageAttributes.entry.2.Name']              = 'AWS.SNS.SMS.SenderID';
+			$params['MessageAttributes.entry.2.Value.DataType']    = 'String';
+			$params['MessageAttributes.entry.2.Value.StringValue'] = $this->sender_id;
 		}
 
 		return $this->api_request( 'Publish', $params );
@@ -64,6 +64,14 @@ class SMSentry_AWS_SNS_Provider implements SMSentry_SMS_Provider {
 			return new WP_Error( 'smsentry_missing_credentials', __( 'AWS Access Key ID and Secret Access Key are required.', 'smsentry' ) );
 		}
 
+		// Validate credential format before making the network call.
+		if ( ! preg_match( '/^[A-Z0-9]{16,}$/', $this->access_key ) ) {
+			return new WP_Error(
+				'smsentry_invalid_format',
+				__( 'AWS Access Key ID looks incorrect — it should be an uppercase alphanumeric string (usually starting with AKIA). Please check it and save again.', 'smsentry' )
+			);
+		}
+
 		// GetSMSAttributes is a lightweight read-only call that confirms the
 		// credentials have SNS access without sending any messages.
 		return $this->api_request( 'GetSMSAttributes', array() );
@@ -71,6 +79,8 @@ class SMSentry_AWS_SNS_Provider implements SMSentry_SMS_Provider {
 
 	/**
 	 * Sign and dispatch a POST request to the SNS API using AWS SigV4.
+	 * The body uses RFC 3986 percent-encoding (not HTML form encoding) to
+	 * ensure the payload hash we sign matches exactly what we transmit.
 	 *
 	 * @param string               $action SNS Action name (e.g. 'Publish').
 	 * @param array<string,string> $params Additional POST body parameters.
@@ -81,67 +91,76 @@ class SMSentry_AWS_SNS_Provider implements SMSentry_SMS_Provider {
 		$params['Version'] = '2010-03-31';
 		ksort( $params );
 
-		$endpoint   = 'https://sns.' . $this->region . '.amazonaws.com/';
-		$service    = 'sns';
-		$host       = 'sns.' . $this->region . '.amazonaws.com';
+		$region   = $this->region;
+		$service  = 'sns';
+		$host     = "sns.{$region}.amazonaws.com";
+		$endpoint = "https://{$host}/";
+
+		// Timestamps must be UTC (gmdate).
 		$amz_date   = gmdate( 'Ymd\THis\Z' );
 		$date_stamp = gmdate( 'Ymd' );
 
-		$body = http_build_query( $params );
+		// Build the request body with RFC 3986 percent-encoding so that
+		// the hash we compute matches the bytes we actually send.
+		$body = http_build_query( $params, '', '&', PHP_QUERY_RFC3986 );
 
 		// ── Step 1: Canonical request ─────────────────────────────────────
-		// Sign only host and x-amz-date — the minimum AWS requires.
-		// Not signing Content-Type avoids signature mismatches caused by
-		// WordPress's HTTP layer normalising the header value in transit.
-		$canonical_headers = "host:{$host}\nx-amz-date:{$amz_date}\n";
-		$signed_headers    = 'host;x-amz-date';
-		$payload_hash      = hash( 'sha256', $body );
+		// Each component is concatenated explicitly to avoid subtle newline
+		// issues that can arise when implode() combines strings that already
+		// contain \n sequences.
+		//
+		// Signed headers: host and x-amz-date only (minimum required by AWS).
+		// Not signing Content-Type avoids mismatches if WordPress's HTTP layer
+		// normalises the header before sending.
+		$payload_hash = hash( 'sha256', $body );
 
-		$canonical_request = implode( "\n", array(
-			'POST',
-			'/',
-			'', // empty canonical query string (parameters are in body)
-			$canonical_headers,
-			$signed_headers,
-			$payload_hash,
-		) );
+		$canonical_request =
+			"POST\n" .          // Method
+			"/\n" .             // URI
+			"\n" .              // Canonical query string (empty — params are in body)
+			"host:{$host}\n" .  // Canonical headers
+			"x-amz-date:{$amz_date}\n" .
+			"\n" .              // Blank line separating headers block from signed-headers list
+			"host;x-amz-date\n" .
+			$payload_hash;
 
 		// ── Step 2: String to sign ────────────────────────────────────────
-		$credential_scope = "{$date_stamp}/{$this->region}/{$service}/aws4_request";
-		$string_to_sign   = implode( "\n", array(
-			'AWS4-HMAC-SHA256',
-			$amz_date,
-			$credential_scope,
-			hash( 'sha256', $canonical_request ),
-		) );
+		$credential_scope = "{$date_stamp}/{$region}/{$service}/aws4_request";
 
-		// ── Step 3: Signing key (HMAC-SHA256 chain) ───────────────────────
-		$k_date    = hash_hmac( 'sha256', $date_stamp,      'AWS4' . $this->secret_key, true );
-		$k_region  = hash_hmac( 'sha256', $this->region,    $k_date,    true );
-		$k_service = hash_hmac( 'sha256', $service,         $k_region,  true );
-		$k_signing = hash_hmac( 'sha256', 'aws4_request',   $k_service, true );
+		$string_to_sign =
+			"AWS4-HMAC-SHA256\n" .
+			"{$amz_date}\n" .
+			"{$credential_scope}\n" .
+			hash( 'sha256', $canonical_request );
+
+		// ── Step 3: Signing key (HMAC-SHA256 derivation chain) ────────────
+		$k_date    = hash_hmac( 'sha256', $date_stamp,     "AWS4{$this->secret_key}", true );
+		$k_region  = hash_hmac( 'sha256', $region,         $k_date,    true );
+		$k_service = hash_hmac( 'sha256', $service,        $k_region,  true );
+		$k_signing = hash_hmac( 'sha256', 'aws4_request',  $k_service, true );
 
 		// ── Step 4: Signature ─────────────────────────────────────────────
 		$signature = hash_hmac( 'sha256', $string_to_sign, $k_signing );
 
 		// ── Step 5: Authorization header ──────────────────────────────────
-		$authorization = sprintf(
-			'AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s',
-			$this->access_key,
-			$credential_scope,
-			$signed_headers,
-			$signature
-		);
+		$authorization =
+			"AWS4-HMAC-SHA256 " .
+			"Credential={$this->access_key}/{$credential_scope}, " .
+			"SignedHeaders=host;x-amz-date, " .
+			"Signature={$signature}";
 
-		$response = wp_remote_post( $endpoint, array(
-			'headers' => array(
-				'Content-Type'  => 'application/x-www-form-urlencoded',
-				'X-Amz-Date'    => $amz_date,
-				'Authorization' => $authorization,
-			),
-			'body'    => $body,
-			'timeout' => 15,
-		) );
+		$response = wp_remote_post(
+			$endpoint,
+			array(
+				'headers' => array(
+					'Content-Type'  => 'application/x-www-form-urlencoded',
+					'X-Amz-Date'   => $amz_date,
+					'Authorization' => $authorization,
+				),
+				'body'    => $body,
+				'timeout' => 15,
+			)
+		);
 
 		if ( is_wp_error( $response ) ) {
 			return new WP_Error( 'smsentry_request_failed', $response->get_error_message() );
