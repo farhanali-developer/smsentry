@@ -42,6 +42,7 @@ class SMSentry_Audit_Log {
 	public static function log( int $user_id, string $event_type, string $details = '' ): void {
 		global $wpdb;
 
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Custom table insert; no WP API covers plugin-specific custom tables.
 		$wpdb->insert(
 			self::table_name(),
 			array(
@@ -74,10 +75,8 @@ class SMSentry_Audit_Log {
 		$params[]               = $per_page;
 		$params[]               = $offset;
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table is the internal prefixed table name; $where_sql is built only from fixed string fragments above, all values are bound via $params.
-		$sql = "SELECT * FROM {$table} WHERE {$where_sql} ORDER BY created_at DESC LIMIT %d OFFSET %d";
-
-		return $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- $table is the internal prefixed name; $where_sql is built only from fixed fragments in build_where() with all user values bound as %d/%s via $params. Audit log must reflect real-time data; caching would show stale security events.
+		return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE {$where_sql} ORDER BY created_at DESC LIMIT %d OFFSET %d", $params ), ARRAY_A );
 	}
 
 	public static function count_entries( int $user_filter = 0, string $event_filter = '' ): int {
@@ -87,11 +86,13 @@ class SMSentry_Audit_Log {
 		[ $where_sql, $params ] = self::build_where( $user_filter, $event_filter );
 
 		if ( empty( $params ) ) {
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- no dynamic values; $where_sql is the static '1=1'.
-			return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} WHERE {$where_sql}" );
+			// No filters active: $where_sql is the static literal '1=1', so we can inline it
+			// and avoid any interpolated-variable concerns.
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- $table is the internal prefixed name; no user values in this query. Audit log must reflect real-time data; caching is inappropriate.
+			return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} WHERE 1=1" );
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- see get_entries() above.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- $table is internal; $where_sql from build_where() contains the actual %d/%s placeholders that prepare() binds to $params. Audit log must show real-time data.
 		return (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE {$where_sql}", $params ) );
 	}
 
@@ -101,9 +102,10 @@ class SMSentry_Audit_Log {
 		$days  = (int) apply_filters( 'smsentry_audit_log_retention_days', 90 );
 		$table = self::table_name();
 
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Scheduled maintenance DELETE on the plugin's custom audit log table; no WP API available for this.
 		$wpdb->query(
 			$wpdb->prepare(
-				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table is the internal prefixed table name.
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table is the internal prefixed table name, not user input.
 				"DELETE FROM {$table} WHERE created_at < %s",
 				gmdate( 'Y-m-d H:i:s', time() - ( $days * DAY_IN_SECONDS ) )
 			)

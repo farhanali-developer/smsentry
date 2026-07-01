@@ -27,6 +27,7 @@ class SMSentry_CLI_Command {
 		$user_ids  = array();
 
 		foreach ( $meta_keys as $meta_key ) {
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- WP-CLI admin command; querying meta is acceptable here as it runs outside the normal request cycle.
 			$user_ids = array_merge( $user_ids, get_users( array(
 				'meta_key'     => $meta_key,
 				'meta_value'   => '1',

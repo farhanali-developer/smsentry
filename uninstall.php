@@ -52,7 +52,7 @@ $wpdb->query(
 
 // Drop the audit log table.
 $audit_table = $wpdb->prefix . 'smsentry_audit_log';
-// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $audit_table is the plugin's own prefixed table name, not user input; DDL statements cannot use prepare().
 $wpdb->query( "DROP TABLE IF EXISTS {$audit_table}" );
 
 wp_clear_scheduled_hook( 'smsentry_prune_audit_log' );

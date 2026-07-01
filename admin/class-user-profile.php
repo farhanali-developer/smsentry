@@ -263,6 +263,7 @@ class SMSentry_User_Profile {
 	 * Verification Code".
 	 */
 	public function maybe_warn_unsaved_phone(): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Hooked to personal_options_update/edit_user_profile_update, which WordPress only fires after it has already verified the profile update nonce via check_admin_referer() in wp-admin/profile.php and wp-admin/user-edit.php.
 		$pending = sanitize_text_field( wp_unslash( $_POST['smsentry_pending_phone'] ?? '' ) );
 
 		if ( '' === $pending ) {
